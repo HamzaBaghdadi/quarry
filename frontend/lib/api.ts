@@ -136,6 +136,7 @@ interface Backend {
   CheckForUpdate(): Promise<UpdateInfo | null>;
   InstallUpdate(): Promise<"restart" | "installer">;
   RestartApp(): Promise<void>;
+  CloseWindow(): Promise<void>;
 }
 
 export interface UpdateInfo {

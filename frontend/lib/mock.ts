@@ -198,6 +198,7 @@ export function createMockBackend() {
       return "restart" as const;
     },
     RestartApp: async () => location.reload(),
+    CloseWindow: async () => {},
     Restore: async (_id: string, _scope: string, path: string, runId: string) => simulate(runId, path, true),
   };
 }

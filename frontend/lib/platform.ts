@@ -25,7 +25,11 @@ export const win = {
   minimise: () => rt()?.WindowMinimise?.(),
   toggleMaximise: () => rt()?.WindowToggleMaximise?.(),
   isMaximised: async () => (await rt()?.WindowIsMaximised?.()) ?? false,
-  close: () => rt()?.Quit?.(),
+  close: () => {
+    const app = (window as unknown as { go?: { main?: { App?: { CloseWindow?: () => Promise<void> } } } }).go?.main?.App;
+    if (app?.CloseWindow) void app.CloseWindow();
+    else rt()?.Quit?.();
+  },
   openURL: (url: string) => {
     const r = rt();
     if (r?.BrowserOpenURL) r.BrowserOpenURL(url);

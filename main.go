@@ -41,10 +41,12 @@ func main() {
 
 	err = wails.Run(&options.App{
 		Title:     "Quarry",
-		Width:     1360,
-		Height:    860,
-		MinWidth:  900,
-		MinHeight: 560,
+		Width:     defaultW,
+		Height:    defaultH,
+		MinWidth:  minW,
+		MinHeight: minH,
+		// Shown once sized to fit the screen (see window.go).
+		StartHidden: true,
 		// Our own title bar on Windows & Linux; macOS keeps its traffic lights
 		// over a full-size content view.
 		Frameless:        goruntime.GOOS != "darwin",
@@ -52,6 +54,8 @@ func main() {
 		AssetServer:      &assetserver.Options{Assets: assets},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
+		OnDomReady:       app.placeWindow,
+		OnBeforeClose:    app.saveWindowState,
 		Bind:             []interface{}{app},
 		Windows: &windows.Options{
 			Theme:                             windows.Dark,
