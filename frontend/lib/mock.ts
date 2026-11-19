@@ -1,10 +1,10 @@
 // In-memory demo backend used when the UI runs outside the desktop shell
 // (e.g. `pnpm dev` in a browser). It mimics the Go API closely enough to
 // design and test every screen without a database.
-import type { Connection, DriverInfo, Profile, Result, TreeNode, Cell } from "./api";
+import type { BackupReport, Cell, ChangeSet, Connection, DriverInfo, Profile, Result, TreeNode } from "./api";
 
 const all = ["host", "port", "user", "password", "database", "ssl", "uri"] as const;
-const drivers: DriverInfo[] = [
+const rawDrivers: Omit<DriverInfo, "capabilities">[] = [
   { id: "clickhouse", name: "ClickHouse", family: "sql", language: "sql", defaultPort: 9000, defaultUser: "default", fields: [...all], uriPlaceholder: "clickhouse://default:@localhost:9000/default", sslModes: ["false", "true"], example: "SELECT version();" },
   { id: "cockroachdb", name: "CockroachDB", family: "sql", language: "sql", defaultPort: 26257, defaultUser: "root", fields: [...all], uriPlaceholder: "postgresql://root@localhost:26257/defaultdb", sslModes: ["disable", "require"], example: "SHOW DATABASES;" },
   { id: "mariadb", name: "MariaDB", family: "sql", language: "sql", defaultPort: 3306, defaultUser: "root", fields: [...all], uriPlaceholder: "user:pass@tcp(localhost:3306)/db", sslModes: ["false", "true"], example: "SELECT VERSION();" },
@@ -17,6 +17,11 @@ const drivers: DriverInfo[] = [
   { id: "tidb", name: "TiDB", family: "sql", language: "sql", defaultPort: 4000, defaultUser: "root", fields: [...all], uriPlaceholder: "user:pass@tcp(localhost:4000)/db", sslModes: ["false", "true"], example: "SELECT tidb_version();" },
   { id: "valkey", name: "Valkey", family: "keyvalue", language: "redis", defaultPort: 6379, defaultUser: "", fields: [...all], uriPlaceholder: "redis://localhost:6379/0", sslModes: ["false", "true"], example: "INFO server" },
 ];
+const noBackup = new Set(["clickhouse", "mssql", "cockroachdb"]);
+const drivers: DriverInfo[] = rawDrivers.map((d) => ({
+  ...d,
+  capabilities: d.id === "clickhouse" ? [] : noBackup.has(d.id) ? ["edit"] : ["edit", "backup"],
+}));
 
 const firstNames = ["Ada", "Linus", "Grace", "Ken", "Barbara", "Dennis", "Margaret", "Guido", "Anders", "Radia", "Edsger", "Frances"];
 const cities = ["Amman", "Berlin", "Lagos", "Lisbon", "Osaka", "Toronto", "Austin", "Cairo"];
@@ -129,7 +134,11 @@ export function createMockBackend() {
     Browse: async (_id: string, req: { path: string[]; offset: number; limit: number; filter: string; orderBy: string; desc: boolean }) => {
       await wait(150);
       const name = req.path[req.path.length - 1];
-      return page(name === "orders" ? "orders" : "users", req.offset, req.limit, req.filter, req.orderBy, req.desc);
+      const r = page(name === "orders" ? "orders" : "users", req.offset, req.limit, req.filter, req.orderBy, req.desc);
+      if (name === "active_users") return { ...r, editBlocked: "Views can't be edited." };
+      const conn = profiles.find((p) => p.id === _id);
+      if (conn?.readOnly) return { ...r, editBlocked: "This connection is read-only." };
+      return { ...r, keys: ["id"] };
     },
     Execute: async (_id: string, _scope: string, query: string): Promise<Result> => {
       await wait(300);
@@ -143,5 +152,43 @@ export function createMockBackend() {
     Cancel: async () => true,
     PickFile: async () => "C:\\data\\demo.sqlite",
     Export: async (_f: string, _r: Result, name: string) => `~/Downloads/${name}.csv`,
+    ApplyChanges: async (_id: string, cs: ChangeSet): Promise<Result> => {
+      await wait(250);
+      const t = tables[cs.path.at(-1) === "orders" ? "orders" : "users"];
+      const col = (n: string) => t.columns.findIndex((c) => c.name === n);
+      const find = (key: Record<string, Cell>) => t.rows.findIndex((r) => String(r[0]) === String(key.id));
+      for (const d of cs.deletes) {
+        const i = find(d);
+        if (i < 0) throw new Error(`Row ${d.id} not found — nothing was saved`);
+        t.rows.splice(i, 1);
+      }
+      for (const u of cs.updates) {
+        const i = find(u.key);
+        if (i < 0) throw new Error(`Row ${u.key.id} not found — nothing was saved`);
+        for (const [k, v] of Object.entries(u.values)) t.rows[i][col(k)] = v;
+      }
+      for (const ins of cs.inserts) {
+        const row: Cell[] = t.columns.map(() => null);
+        row[0] = Math.max(...t.rows.map((r) => Number(r[0]))) + 1;
+        for (const [k, v] of Object.entries(ins)) row[col(k)] = v;
+        t.rows.push(row);
+      }
+      const n = cs.updates.length + cs.inserts.length + cs.deletes.length;
+      return { columns: null, rows: null, rowsAffected: n, hasMore: false, durationMs: 6, message: `Saved ${n} change(s)` };
+    },
+    Backup: async (_id: string, scope: string, runId: string) => simulate(runId, `~/Backups/demo-${scope || "db"}.sql`, false),
+    PickBackupFile: async () => "~/Backups/demo-app-20261119.sql",
+    Restore: async (_id: string, _scope: string, path: string, runId: string) => simulate(runId, path, true),
   };
+}
+
+async function simulate(runId: string, path: string, restore: boolean): Promise<BackupReport> {
+  const total = 2_400_000;
+  const steps = ["public.orders", "public.users", "audit.events"];
+  for (let i = 1; i <= 12; i++) {
+    await wait(180);
+    const msg = restore ? `${i * 40} statements · ${i * 4000} rows` : `Table ${Math.ceil(i / 4)}/3 · ${steps[Math.ceil(i / 4) - 1]}`;
+    window.dispatchEvent(new CustomEvent("quarry:progress", { detail: { runId, message: msg, done: (total / 12) * i, total: restore ? total : 0 } }));
+  }
+  return { path, bytes: total, stats: { objects: 3, rows: 48_000, statements: restore ? 480 : 0 }, durationMs: 2160 };
 }

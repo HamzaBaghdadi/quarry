@@ -189,3 +189,12 @@ textarea,
   background: var(--accent) !important;
   color: var(--accent-fg) !important;
 }
+
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}

@@ -28,6 +28,7 @@ func (Driver) Info() driver.Info {
 		SSLModes:       []string{"false", "true", "strict", "disable"},
 		URIPlaceholder: "sqlserver://sa:pass@localhost:1433?database=master",
 		Example:        "SELECT @@VERSION;",
+		Capabilities:   []string{driver.CapEdit},
 	}
 }
 
@@ -119,4 +120,21 @@ func (d dialect) Children(ctx context.Context, e *sqlbase.Engine, path []string)
 		return sqlbase.Tables(path, pairs), nil
 	}
 	return nil, nil
+}
+
+// --- Editing -------------------------------------------------------------
+
+func (dialect) Placeholder(n int) string { return "@p" + strconv.Itoa(n) }
+
+func (d dialect) PrimaryKey(ctx context.Context, e *sqlbase.Engine, path []string) ([]string, error) {
+	if len(path) != 3 {
+		return nil, nil
+	}
+	db := d.Quote(path[0])
+	return sqlbase.Strings(ctx, e.DB, `SELECT kcu.COLUMN_NAME
+		FROM `+db+`.INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+		JOIN `+db+`.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+		  ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA AND tc.TABLE_NAME = kcu.TABLE_NAME
+		WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY' AND tc.TABLE_SCHEMA = @p1 AND tc.TABLE_NAME = @p2
+		ORDER BY kcu.ORDINAL_POSITION`, path[1], path[2])
 }

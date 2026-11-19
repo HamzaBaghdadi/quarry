@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { BracketsCurly, CheckCircle, Copy, DownloadSimple, Rows, WarningOctagon } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { api, type Result } from "@/lib/api";
-import { DataGrid } from "./DataGrid";
+import { DataGrid, type GridEdits } from "./DataGrid";
 import { Button, Spinner } from "./ui";
 
 export function ResultPanel({
@@ -19,6 +19,7 @@ export function ResultPanel({
   onSort,
   footerExtra,
   emptyHint,
+  edits,
 }: {
   result: Result | null;
   error: string | null;
@@ -30,6 +31,7 @@ export function ResultPanel({
   onSort?: (col: string) => void;
   footerExtra?: ReactNode;
   emptyHint?: ReactNode;
+  edits?: GridEdits;
 }) {
   const [view, setView] = useState<"grid" | "json">("grid");
   const hasDocs = !!result?.documents?.length;
@@ -76,7 +78,7 @@ export function ResultPanel({
       </pre>
     );
   } else {
-    body = <DataGrid columns={columns} rows={rows} offset={offset} sort={sort} onSort={onSort} label={`${name} results`} />;
+    body = <DataGrid columns={columns} rows={rows} offset={offset} sort={sort} onSort={onSort} label={`${name} results`} edits={edits} />;
   }
 
   return (

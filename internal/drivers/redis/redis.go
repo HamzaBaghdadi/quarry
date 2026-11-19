@@ -25,6 +25,7 @@ func init() {
 		info.SSLModes = []string{"false", "true"}
 		info.URIPlaceholder = "redis://:password@localhost:6379/0"
 		info.Example = "INFO server"
+		info.Capabilities = []string{driver.CapEdit, driver.CapBackup}
 		driver.Register(&Driver{info: info})
 	}
 }

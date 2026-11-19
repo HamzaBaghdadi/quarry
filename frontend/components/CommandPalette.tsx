@@ -1,7 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
-import { Code, Moon, Plug, Plus, Table, Lightning } from "@phosphor-icons/react";
+import { CloudArrowDown, CloudArrowUp, Code, Moon, Plug, Plus, Table, Lightning } from "@phosphor-icons/react";
 import { useStore } from "@/lib/store";
 import { EngineBadge } from "./ui";
 
@@ -12,6 +12,7 @@ export function CommandPalette() {
   const open = useStore((s) => s.palette);
   const connections = useStore((s) => s.connections);
   const tree = useStore((s) => s.tree);
+  const drivers = useStore((s) => s.drivers);
   const s = useStore.getState();
   if (!open) return null;
 
@@ -49,6 +50,18 @@ export function CommandPalette() {
             <Command.Item className={item} onSelect={run(() => s.toggleTheme())}>
               <Moon aria-hidden className="size-4" /> Toggle light / dark theme
             </Command.Item>
+            {connections
+              .filter((c) => c.connected && drivers.find((d) => d.id === c.driver)?.capabilities?.includes("backup"))
+              .flatMap((c) => [
+                <Command.Item key={"b" + c.id} className={item} value={`backup ${c.name}`} onSelect={run(() => s.openBackup(c.id, "backup"))}>
+                  <CloudArrowDown aria-hidden className="size-4" /> Back up {c.name}…
+                </Command.Item>,
+                !c.readOnly && (
+                  <Command.Item key={"r" + c.id} className={item} value={`restore ${c.name}`} onSelect={run(() => s.openBackup(c.id, "restore"))}>
+                    <CloudArrowUp aria-hidden className="size-4" /> Restore into {c.name}…
+                  </Command.Item>
+                ),
+              ])}
             {connections
               .filter((c) => c.connected)
               .map((c) => (

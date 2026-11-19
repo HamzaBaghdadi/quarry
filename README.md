@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/logo.svg" width="96" alt="" />
+
 # Quarry
 
 **A small, fast desktop client for every database.**
@@ -22,6 +24,8 @@ pgAdmin is a web server in a box. Compass is an Electron app for one database. D
 - **Explorer** — lazy-loaded tree of databases → schemas → tables / collections / keys, with instant filtering.
 - **Query editor** — CodeMirror with per-dialect SQL highlighting and autocomplete, mongosh-style queries for MongoDB, redis-cli commands for Redis. `Ctrl/⌘ + Enter` runs the selection or the whole buffer; long queries can be cancelled.
 - **Data grid** — virtualized (scrolls 100k cells smoothly), resizable columns, server-side sort, `WHERE` / Mongo filter bar, pagination, keyboard navigation, cell inspector with pretty JSON, copy cell/row.
+- **Edit any cell** — double-click, press Enter/F2 or just start typing. Add rows, mark rows for deletion with `Del`, set NULL, edit long text or JSON in the side panel. Changes are staged (amber = edited, red = deleted, green = new) and written together with `Ctrl/⌘ + S` inside one transaction; if any row changed underneath you, nothing is saved. Works for SQL tables with a primary key, MongoDB documents (types such as ObjectId and dates are preserved) and Redis strings, hashes, lists, sets and sorted sets.
+- **Backup & restore** — built in, no `pg_dump` or `mongodump` needed. PostgreSQL, MySQL/MariaDB/TiDB and SQLite back up to a portable `.sql` script (schema, rows, keys, indexes, views, sequences, enums) read from a consistent snapshot; MongoDB to an Extended-JSON archive with indexes; Redis/Valkey via `DUMP`/`RESTORE` with TTLs. Live progress, cancellable, and partial files are never left behind.
 - **Export** — CSV or JSON via native save dialog.
 - **Safe by default** — passwords live in the OS keychain (Windows Credential Manager, macOS Keychain, Secret Service). Mark a connection *read-only* to block writes on production.
 - **Command palette** — `Ctrl/⌘ + K` to jump to any connection, table or action.
@@ -29,16 +33,18 @@ pgAdmin is a web server in a box. Compass is an Electron app for one database. D
 
 ## Supported engines
 
-| Engine | Driver | Also works with |
-| --- | --- | --- |
-| PostgreSQL | pgx | Supabase, Neon, Timescale, YugabyteDB, AlloyDB |
-| CockroachDB | pgx | |
-| MySQL / MariaDB / TiDB | go-sql-driver/mysql | PlanetScale, Vitess, Aurora MySQL |
-| SQLite | modernc.org/sqlite (pure Go, no CGO) | libSQL files |
-| SQL Server | go-mssqldb | Azure SQL |
-| ClickHouse | clickhouse-go | |
-| MongoDB | mongo-go-driver v2 | DocumentDB, Cosmos DB (Mongo API), FerretDB |
-| Redis / Valkey | go-redis | KeyDB, Dragonfly |
+| Engine | Driver | Edit | Backup | Also works with |
+| --- | --- | :-: | :-: | --- |
+| PostgreSQL | pgx | ✓ | ✓ | Supabase, Neon, Timescale, YugabyteDB, AlloyDB |
+| CockroachDB | pgx | ✓ | — ¹ | |
+| MySQL / MariaDB / TiDB | go-sql-driver/mysql | ✓ | ✓ | PlanetScale, Vitess, Aurora MySQL |
+| SQLite | modernc.org/sqlite (pure Go, no CGO) | ✓ | ✓ | libSQL files |
+| SQL Server | go-mssqldb | ✓ | — ¹ | Azure SQL |
+| ClickHouse | clickhouse-go | — | — ¹ | |
+| MongoDB | mongo-go-driver v2 | ✓ | ✓ | DocumentDB, Cosmos DB (Mongo API), FerretDB |
+| Redis / Valkey | go-redis | ✓ | ✓ | KeyDB, Dragonfly |
+
+¹ Use the engine's native server-side backup (`BACKUP DATABASE`, `BACKUP TABLE … TO`, CockroachDB `BACKUP`).
 
 Every engine accepts either individual fields or a full connection URL.
 
@@ -117,11 +123,13 @@ Dark-first developer-tool aesthetic (OLED dark + Swiss minimalism): slate surfac
 | New connection | `Ctrl/⌘ N` |
 | Move in grid | Arrow keys, `PgUp`/`PgDn`, `Home`/`End` |
 | Copy cell / row | `Ctrl/⌘ C` / `Ctrl/⌘ Shift C` |
-| Inspect cell | `Enter` or double-click |
+| Edit cell | Double-click, `Enter`, `F2` or start typing |
+| Inspect / edit long value | `Space` |
+| Mark row for deletion | `Del` |
+| Save changes | `Ctrl/⌘ S` |
 
 ## Roadmap
 
-- Inline cell editing and row insert/delete with a reviewed change set
 - Table structure view (columns, indexes, foreign keys) and ER diagram
 - SSH tunnels
 - Query history and saved snippets

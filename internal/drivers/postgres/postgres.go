@@ -27,6 +27,7 @@ func init() {
 		SSLModes:       []string{"prefer", "disable", "require", "verify-ca", "verify-full"},
 		URIPlaceholder: "postgres://user:pass@localhost:5432/db?sslmode=disable",
 		Example:        "SELECT now(), version();",
+		Capabilities:   []string{driver.CapEdit, driver.CapBackup},
 	}})
 	driver.Register(&Driver{info: driver.Info{
 		ID: "cockroachdb", Name: "CockroachDB", Family: driver.FamilySQL, Language: "sql",
@@ -34,6 +35,7 @@ func init() {
 		SSLModes:       []string{"disable", "require", "verify-full"},
 		URIPlaceholder: "postgresql://root@localhost:26257/defaultdb?sslmode=disable",
 		Example:        "SHOW DATABASES;",
+		Capabilities:   []string{driver.CapEdit},
 	}})
 }
 
@@ -95,6 +97,9 @@ func (d *Driver) config(cfg driver.Config) (*pgx.ConnConfig, error) {
 	if cfg.URI != "" && cfg.Password != "" && c.Password == "" {
 		c.Password = cfg.Password
 	}
+	// Simple protocol lets the editor run multi-statement scripts and lets
+	// the server coerce text parameters into each column's type.
+	c.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	if c.Database == "" {
 		c.Database = c.User
 	}

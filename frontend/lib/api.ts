@@ -16,6 +16,7 @@ export interface DriverInfo {
   uriPlaceholder: string;
   sslModes: string[] | null;
   example: string;
+  capabilities: ("edit" | "backup")[] | null;
 }
 
 export interface ConnConfig {
@@ -81,6 +82,35 @@ export interface Result {
   durationMs: number;
   statement?: string;
   documents?: string[] | null;
+  keys?: string[] | null;
+  editBlocked?: string;
+}
+
+export interface RowChange {
+  key: Record<string, Cell>;
+  values: Record<string, Cell>;
+}
+
+export interface ChangeSet {
+  path: string[];
+  updates: RowChange[];
+  inserts: Record<string, Cell>[];
+  deletes: Record<string, Cell>[];
+  types: Record<string, string>;
+}
+
+export interface BackupReport {
+  path: string;
+  bytes: number;
+  stats: { objects: number; rows: number; statements: number };
+  durationMs: number;
+}
+
+export interface ProgressEvent {
+  runId: string;
+  message: string;
+  done: number;
+  total: number;
 }
 
 interface Backend {
@@ -98,11 +128,16 @@ interface Backend {
   Cancel(runId: string): Promise<boolean>;
   PickFile(): Promise<string>;
   Export(format: "csv" | "json", res: Result, name: string): Promise<string>;
+  ApplyChanges(id: string, cs: ChangeSet): Promise<Result>;
+  Backup(id: string, scope: string, runId: string): Promise<BackupReport>;
+  PickBackupFile(id: string): Promise<string>;
+  Restore(id: string, scope: string, path: string, runId: string): Promise<BackupReport>;
 }
 
 declare global {
   interface Window {
     go?: { main?: { App?: Backend } };
+    runtime?: { EventsOn(name: string, cb: (...data: unknown[]) => void): () => void };
   }
 }
 
@@ -145,6 +180,10 @@ export const api = {
   cancel: (runId: string) => call("Cancel", runId),
   pickFile: () => call("PickFile"),
   exportResult: (format: "csv" | "json", res: Result, name: string) => call("Export", format, res, name),
+  applyChanges: (id: string, cs: ChangeSet) => call("ApplyChanges", id, cs),
+  backup: (id: string, scope: string, runId: string) => call("Backup", id, scope, runId),
+  pickBackupFile: (id: string) => call("PickBackupFile", id),
+  restore: (id: string, scope: string, path: string, runId: string) => call("Restore", id, scope, path, runId),
 };
 
 export const emptyConfig = (): ConnConfig => ({
@@ -159,3 +198,12 @@ export const emptyConfig = (): ConnConfig => ({
 });
 
 export const newRunId = () => Math.random().toString(36).slice(2);
+
+/** Subscribe to backup/restore progress. Returns an unsubscribe function. */
+export function onProgress(cb: (e: ProgressEvent) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  if (window.runtime?.EventsOn) return window.runtime.EventsOn("progress", (e) => cb(e as ProgressEvent));
+  const h = (e: Event) => cb((e as CustomEvent<ProgressEvent>).detail);
+  window.addEventListener("quarry:progress", h);
+  return () => window.removeEventListener("quarry:progress", h);
+}

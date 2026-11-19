@@ -29,6 +29,8 @@ export interface Inspected {
   column: string;
   type: string;
   value: unknown;
+  /** Present when the value is editable; receives the new text (null = NULL). */
+  onSave?: (text: string | null) => void;
 }
 
 interface State {
@@ -43,6 +45,7 @@ interface State {
   activeTab: string | null;
   dialog: { open: boolean; profile?: Profile };
   palette: boolean;
+  backup: { connId: string; scope: string; mode: "backup" | "restore" } | null;
   inspected: Inspected | null;
   theme: "dark" | "light";
 
@@ -51,6 +54,8 @@ interface State {
   openDialog(profile?: Profile): void;
   closeDialog(): void;
   setPalette(open: boolean): void;
+  openBackup(connId: string, mode: "backup" | "restore", scope?: string): void;
+  closeBackup(): void;
   connect(id: string): Promise<void>;
   disconnect(id: string): Promise<void>;
   removeConnection(id: string): Promise<void>;
@@ -89,6 +94,7 @@ export const useStore = create<State>((set, get) => ({
   activeTab: null,
   dialog: { open: false },
   palette: false,
+  backup: null,
   inspected: null,
   theme: "dark",
 
@@ -111,6 +117,8 @@ export const useStore = create<State>((set, get) => ({
   openDialog: (profile) => set({ dialog: { open: true, profile } }),
   closeDialog: () => set({ dialog: { open: false } }),
   setPalette: (palette) => set({ palette }),
+  openBackup: (connId, mode, scope = "") => set({ backup: { connId, mode, scope } }),
+  closeBackup: () => set({ backup: null }),
 
   async connect(id) {
     const conn = get().connections.find((c) => c.id === id);

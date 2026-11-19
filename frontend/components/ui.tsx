@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
-import { engineMark } from "@/lib/engines";
+import { engineMark, onColor } from "@/lib/engines";
 
 type Variant = "primary" | "run" | "ghost" | "subtle" | "danger";
 
@@ -101,23 +101,39 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
+/**
+ * Engine logo on a brand-coloured tile. `color` (the connection's own colour)
+ * is shown as a small tag in the corner so saved connections stay distinguishable.
+ */
 export function EngineBadge({ driver, size = 28, color }: { driver?: string; size?: number; color?: string }) {
-  const { mark, hue } = engineMark(driver);
-  const c = color || hue;
+  const { mark, hue, path } = engineMark(driver);
+  const fg = onColor(hue);
   return (
     <span
       aria-hidden
-      className="inline-flex shrink-0 items-center justify-center rounded-md font-mono font-semibold"
+      className="relative inline-flex shrink-0 items-center justify-center rounded-md font-mono font-semibold"
       style={{
         width: size,
         height: size,
         fontSize: Math.round(size * 0.4),
-        color: c,
-        background: `color-mix(in srgb, ${c} 16%, transparent)`,
-        boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${c} 35%, transparent)`,
+        color: fg,
+        background: hue,
+        boxShadow: "inset 0 0 0 1px rgb(255 255 255 / 0.12)",
       }}
     >
-      {mark}
+      {path ? (
+        <svg viewBox="0 0 24 24" width={Math.round(size * 0.62)} height={Math.round(size * 0.62)} fill="currentColor">
+          <path d={path} />
+        </svg>
+      ) : (
+        mark
+      )}
+      {color && (
+        <span
+          className="absolute -bottom-0.5 -left-0.5 rounded-full border-2 border-bg-0"
+          style={{ width: Math.max(8, size * 0.32), height: Math.max(8, size * 0.32), background: color }}
+        />
+      )}
     </span>
   );
 }

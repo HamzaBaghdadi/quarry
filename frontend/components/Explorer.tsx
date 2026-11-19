@@ -5,6 +5,7 @@ import { memo, useMemo, useState, type KeyboardEvent } from "react";
 import {
   ArrowClockwise,
   CaretRight,
+  CloudArrowDown,
   Database,
   Eye,
   FolderSimple,
@@ -151,7 +152,11 @@ const Row = memo(function Row({ connId, node, depth, flat }: { connId: string; n
     const t = s.tabs.find((t) => t.id === s.activeTab);
     return t?.kind === "table" && t.connId === connId && t.path?.join("/") === node.path.join("/");
   });
-  const { toggle, openTable, newQuery } = useStore.getState();
+  const { toggle, openTable, newQuery, openBackup } = useStore.getState();
+  const canBackup = useStore((s) => {
+    const c = s.connections.find((c) => c.id === connId);
+    return !!s.drivers.find((d) => d.id === c?.driver)?.capabilities?.includes("backup");
+  });
   const Icon = icons[node.kind] ?? Table;
   const expandable = node.hasChildren && !flat;
 
@@ -196,6 +201,19 @@ const Row = memo(function Row({ connId, node, depth, flat }: { connId: string; n
         <span className="min-w-0 flex-1 truncate">{node.name}</span>
         {flat && node.path.length > 1 && <span className="truncate text-[11px] text-fg-subtle">{node.path.slice(0, -1).join(".")}</span>}
         {node.detail && !flat && <span className="shrink-0 font-mono text-[11px] text-fg-subtle group-hover:hidden">{node.detail}</span>}
+        {node.kind === "database" && canBackup && (
+          <button
+            aria-label={`Back up ${node.name}`}
+            title={`Back up ${node.name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openBackup(connId, "backup", node.path[0]);
+            }}
+            className="hidden size-5 shrink-0 cursor-pointer items-center justify-center rounded text-fg-muted hover:bg-bg-3 hover:text-fg group-hover:flex group-focus-within:flex"
+          >
+            <CloudArrowDown className="size-3" weight="bold" />
+          </button>
+        )}
         {node.kind === "database" && (
           <button
             aria-label={`New query in ${node.name}`}

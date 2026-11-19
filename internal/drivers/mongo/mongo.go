@@ -32,6 +32,7 @@ func (Driver) Info() driver.Info {
 		SSLModes:       []string{"false", "true"},
 		URIPlaceholder: "mongodb+srv://user:pass@cluster.example.net/app",
 		Example:        "db.getCollection(\"users\").find({}).limit(20)",
+		Capabilities:   []string{driver.CapEdit, driver.CapBackup},
 	}
 }
 

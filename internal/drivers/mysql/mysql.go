@@ -4,8 +4,10 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -31,6 +33,7 @@ func init() {
 		info.DefaultUser = "root"
 		info.SSLModes = []string{"false", "preferred", "true", "skip-verify"}
 		info.URIPlaceholder = "user:pass@tcp(localhost:3306)/db?parseTime=true"
+		info.Capabilities = []string{driver.CapEdit, driver.CapBackup}
 		driver.Register(&Driver{info: info})
 	}
 }
@@ -68,6 +71,7 @@ func (d *Driver) Open(ctx context.Context, cfg driver.Config) (driver.Conn, erro
 	c.Loc = time.UTC
 	c.MultiStatements = false
 	c.InterpolateParams = true
+	c.ClientFoundRows = true // UPDATE reports matched rows, so edit checks are exact
 	connector, err := gomysql.NewConnector(c)
 	if err != nil {
 		return nil, err
@@ -124,4 +128,80 @@ func (dialect) Children(ctx context.Context, e *sqlbase.Engine, path []string) (
 		return sqlbase.Tables(path, pairs), nil
 	}
 	return nil, nil
+}
+
+// --- Editing -------------------------------------------------------------
+
+func (dialect) Placeholder(int) string { return "?" }
+func (dialect) EmptyInsert() string    { return "() VALUES ()" }
+
+func (dialect) PrimaryKey(ctx context.Context, e *sqlbase.Engine, path []string) ([]string, error) {
+	if len(path) != 2 {
+		return nil, nil
+	}
+	return sqlbase.Strings(ctx, e.DB, `SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE
+		WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = 'PRIMARY' ORDER BY ORDINAL_POSITION`, path[0], path[1])
+}
+
+// --- Backup --------------------------------------------------------------
+
+var literals = sqlbase.LiteralStyle{
+	TrueFalse:   [2]string{"1", "0"},
+	Bytes:       sqlbase.HexBytes,
+	Backslashes: true,
+	TimeLayout:  "2006-01-02 15:04:05.999999",
+}
+
+func (dialect) Literal(v any) string               { return literals.Literal(v) }
+func (dialect) SplitOptions() sqlbase.SplitOptions { return sqlbase.SplitOptions{Backslashes: true} }
+
+var definer = regexp.MustCompile(`(?i)\s+DEFINER\s*=\s*\S+@\S+`)
+
+func (d dialect) Plan(ctx context.Context, q sqlbase.Querier, scope string) (*sqlbase.DumpPlan, error) {
+	if scope == "" {
+		return nil, errors.New("pick a database to back up")
+	}
+	plan := &sqlbase.DumpPlan{
+		Header:   []string{"SET NAMES utf8mb4", "SET FOREIGN_KEY_CHECKS = 0", "SET UNIQUE_CHECKS = 0"},
+		Footer:   []string{"SET UNIQUE_CHECKS = 1", "SET FOREIGN_KEY_CHECKS = 1"},
+		Snapshot: &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true},
+	}
+	objs, err := sqlbase.Pairs(ctx, q, `SELECT TABLE_NAME, TABLE_TYPE FROM information_schema.TABLES
+		WHERE TABLE_SCHEMA = ? ORDER BY TABLE_TYPE = 'VIEW', TABLE_NAME`, scope)
+	if err != nil {
+		return nil, err
+	}
+	qualified := func(t string) string { return d.Quote(scope) + "." + d.Quote(t) }
+	for _, o := range objs {
+		name, isView := o[0], strings.Contains(o[1], "VIEW")
+		var ddl string
+		var ignored string
+		stmt := "SHOW CREATE TABLE " + qualified(name)
+		if isView {
+			stmt = "SHOW CREATE VIEW " + qualified(name)
+		}
+		row := q.QueryRowContext(ctx, stmt)
+		if isView {
+			var cs, coll string
+			err = row.Scan(&ignored, &ddl, &cs, &coll)
+		} else {
+			err = row.Scan(&ignored, &ddl)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		if isView {
+			ddl = strings.ReplaceAll(definer.ReplaceAllString(ddl, ""), d.Quote(scope)+".", "")
+			plan.Post = append(plan.Post, "DROP VIEW IF EXISTS "+d.Quote(name), ddl)
+			continue
+		}
+		cols, err := sqlbase.Strings(ctx, q, `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND EXTRA NOT LIKE '%GENERATED%' ORDER BY ORDINAL_POSITION`, scope, name)
+		if err != nil {
+			return nil, err
+		}
+		plan.Pre = append(plan.Pre, "DROP TABLE IF EXISTS "+d.Quote(name), ddl)
+		plan.Tables = append(plan.Tables, sqlbase.DumpTable{Name: name, Source: qualified(name), Target: d.Quote(name), Columns: cols})
+	}
+	return plan, nil
 }

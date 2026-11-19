@@ -1,8 +1,10 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
+  CloudArrowDown,
+  CloudArrowUp,
   Code,
   Command,
   Copy,
@@ -21,6 +23,7 @@ import {
 import { Toaster, toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { isDesktop } from "@/lib/api";
+import { BackupDialog } from "./BackupDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ConnectionDialog } from "./ConnectionDialog";
 import { Explorer } from "./Explorer";
@@ -80,6 +83,7 @@ export default function Workbench() {
       </div>
       <StatusBar />
       <ConnectionDialog />
+      <BackupDialog />
       <CommandPalette />
       <Toaster theme={theme} position="bottom-right" toastOptions={{ className: "!bg-bg-2 !border-line-strong !text-fg !font-sans" }} />
     </div>
@@ -141,11 +145,11 @@ function Rail() {
 function Logo() {
   // A faceted stone: layered data, dug out of a quarry.
   return (
-    <svg viewBox="0 0 32 32" className="size-7" aria-hidden>
-      <path d="M16 3 28 10v12L16 29 4 22V10Z" fill="var(--accent)" opacity=".18" />
-      <path d="M16 3 28 10 16 17 4 10Z" fill="var(--accent)" />
-      <path d="M16 17v12L4 22V10Z" fill="var(--accent)" opacity=".55" />
-      <path d="M16 17 28 10v12L16 29Z" fill="var(--accent)" opacity=".8" />
+    <svg viewBox="2 1 28 30" className="size-7" aria-hidden>
+      <path d="M16 3 28 10 16 17 4 10Z" fill="#60a5fa" />
+      <path d="M16 17v12L4 22V10Z" fill="#2563eb" />
+      <path d="M16 17 28 10v12L16 29Z" fill="#1d4ed8" />
+      <path d="M4 14.1 16 21.1 28 14.1M4 18.1 16 25.1 28 18.1" stroke="var(--bg-0)" strokeWidth="1.1" fill="none" />
     </svg>
   );
 }
@@ -156,7 +160,7 @@ function Sidebar() {
   const activeId = useStore((s) => s.activeId);
   const conn = useStore((s) => s.connections.find((c) => c.id === s.activeId));
   const drivers = useStore((s) => s.drivers);
-  const { newQuery, disconnect, openDialog, removeConnection } = useStore.getState();
+  const { newQuery, disconnect, openDialog, removeConnection, openBackup } = useStore.getState();
 
   if (!conn || !conn.connected || !activeId) return <SavedConnections />;
   const drv = drivers.find((d) => d.id === conn.driver);
@@ -179,6 +183,18 @@ function Sidebar() {
         <Button size="sm" variant="subtle" className="flex-1" onClick={() => newQuery(activeId)}>
           <Code aria-hidden className="size-3.5" /> New query
         </Button>
+        {drv?.capabilities?.includes("backup") && (
+          <>
+            <IconButton label="Back up…" onClick={() => openBackup(activeId, "backup")}>
+              <CloudArrowDown className="size-3.5" />
+            </IconButton>
+            {!conn.readOnly && (
+              <IconButton label="Restore…" onClick={() => openBackup(activeId, "restore")}>
+                <CloudArrowUp className="size-3.5" />
+              </IconButton>
+            )}
+          </>
+        )}
         <IconButton label="Edit connection" onClick={() => openDialog(conn)}>
           <PencilSimple className="size-3.5" />
         </IconButton>
@@ -395,34 +411,88 @@ function Welcome() {
 
 function Inspector() {
   const inspected = useStore((s) => s.inspected)!;
-  const inspect = useStore((s) => s.inspect);
-  const { value } = inspected;
+  return <InspectorBody key={`${inspected.column}:${String(inspected.value)}`} />;
+}
 
-  let pretty = value === null || value === undefined ? "NULL" : String(value);
-  if (typeof value === "string" && /^[[{]/.test(value.trim())) {
+function InspectorBody() {
+  const inspected = useStore((s) => s.inspected)!;
+  const inspect = useStore((s) => s.inspect);
+  const { value, onSave } = inspected;
+  const isJson = typeof value === "string" && /^[[{]/.test(value.trim());
+
+  let pretty = value === null || value === undefined ? "" : String(value);
+  if (isJson) {
     try {
-      pretty = JSON.stringify(JSON.parse(value), null, 2);
+      pretty = JSON.stringify(JSON.parse(value as string), null, 2);
     } catch {}
   }
+  const [draft, setDraft] = useState(pretty);
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const dirty = draft !== pretty;
+
+  const apply = (text: string | null) => {
+    if (text !== null && isJson) {
+      try {
+        text = JSON.stringify(JSON.parse(text)); // keep JSON compact & valid
+      } catch (e) {
+        setJsonError((e as Error).message);
+        return;
+      }
+    }
+    onSave?.(text);
+    inspect(null);
+    toast("Change staged — save the table to write it");
+  };
 
   return (
-    <aside aria-label="Value inspector" className="animate-pop flex w-[340px] shrink-0 flex-col border-l border-line bg-bg-0">
+    <aside aria-label="Value inspector" className="animate-pop flex w-[360px] shrink-0 flex-col border-l border-line bg-bg-0">
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
         <span className="min-w-0 flex-1 truncate font-mono text-[12px] font-semibold">{inspected.column}</span>
         {inspected.type && <span className="font-mono text-[10.5px] uppercase text-fg-subtle">{inspected.type}</span>}
-        <IconButton
-          label="Copy value"
-          onClick={() => navigator.clipboard.writeText(pretty).then(() => toast.success("Copied value"))}
-        >
+        <IconButton label="Copy value" onClick={() => navigator.clipboard.writeText(draft).then(() => toast.success("Copied value"))}>
           <Copy className="size-3.5" />
         </IconButton>
         <IconButton label="Close inspector" onClick={() => inspect(null)}>
           <X className="size-3.5" />
         </IconButton>
       </header>
-      <pre className="selectable min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all p-3 font-mono text-[12.5px] leading-relaxed text-fg">{pretty}</pre>
-      <footer className="border-t border-line px-3 py-1.5 text-[11px] text-fg-subtle">
-        {typeof value === "string" ? `${value.length.toLocaleString()} chars` : typeof value}
+      {onSave ? (
+        <textarea
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setJsonError(null);
+          }}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "Enter") apply(draft);
+          }}
+          placeholder={value === null ? "NULL" : ""}
+          aria-label={`Edit ${inspected.column}`}
+          spellCheck={false}
+          className="min-h-0 flex-1 resize-none bg-bg-0 p-3 font-mono text-[12.5px] leading-relaxed text-fg outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+        />
+      ) : (
+        <pre className="selectable min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all p-3 font-mono text-[12.5px] leading-relaxed text-fg">
+          {value === null || value === undefined ? <span className="italic text-fg-subtle">NULL</span> : pretty}
+        </pre>
+      )}
+      {jsonError && (
+        <p role="alert" className="border-t border-danger/30 bg-danger-soft px-3 py-1.5 text-[11.5px] text-danger">
+          Invalid JSON: {jsonError}
+        </p>
+      )}
+      <footer className="flex min-h-9 items-center gap-2 border-t border-line px-3 py-1.5 text-[11px] text-fg-subtle">
+        <span>{typeof value === "string" ? `${value.length.toLocaleString()} chars` : value === null ? "null" : typeof value}</span>
+        {onSave && (
+          <div className="ml-auto flex gap-1.5">
+            <Button size="sm" variant="ghost" onClick={() => apply(null)}>
+              Set NULL
+            </Button>
+            <Button size="sm" variant="primary" disabled={!dirty} onClick={() => apply(draft)} title={`Apply (${mod()}+Enter)`}>
+              Apply
+            </Button>
+          </div>
+        )}
       </footer>
     </aside>
   );

@@ -6,3 +6,7 @@ licenses, including Wails (MIT), Next.js (MIT), CodeMirror (MIT),
 pgx (MIT), go-sql-driver/mysql (MPL-2.0), modernc.org/sqlite (BSD-3-Clause),
 go-mssqldb (BSD-3-Clause), clickhouse-go (Apache-2.0), mongo-go-driver
 (Apache-2.0), go-redis (BSD-2-Clause) and Phosphor Icons (MIT).
+
+Database logos are from Simple Icons (CC0-1.0, https://simpleicons.org).
+All product names, logos and brands are property of their respective owners
+and are used only to identify the database engines Quarry connects to.

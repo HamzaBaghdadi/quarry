@@ -46,6 +46,8 @@ type Info struct {
 	URIPlaceholder string  `json:"uriPlaceholder"`
 	SSLModes       []string `json:"sslModes"`
 	Example        string  `json:"example"` // starter query for a new editor tab
+	// Capabilities lists optional features: CapEdit, CapBackup.
+	Capabilities []string `json:"capabilities"`
 }
 
 // Config is everything needed to open a connection.
@@ -132,6 +134,11 @@ type Result struct {
 	// Documents holds pretty JSON per row for document stores, so the UI can
 	// offer a lossless JSON view next to the flattened grid.
 	Documents []string `json:"documents,omitempty"`
+	// Keys are the columns that identify a row when the result is editable
+	// (set on Browse results only). Empty means read-only.
+	Keys []string `json:"keys,omitempty"`
+	// EditBlocked explains why a browsed object can't be edited.
+	EditBlocked string `json:"editBlocked,omitempty"`
 }
 
 // Timer is a tiny helper for stamping Result.DurationMs.
