@@ -136,6 +136,7 @@ interface Backend {
   CheckForUpdate(): Promise<UpdateInfo | null>;
   InstallUpdate(): Promise<"restart" | "installer">;
   RestartApp(): Promise<void>;
+  DuplicateConnection(id: string): Promise<Profile>;
   CloseWindow(): Promise<void>;
 }
 
@@ -186,6 +187,7 @@ export const api = {
   listConnections: () => call("ListConnections"),
   saveConnection: (p: Profile, keepPassword: boolean) => call("SaveConnection", p, keepPassword),
   deleteConnection: (id: string) => call("DeleteConnection", id),
+  duplicateConnection: (id: string) => call("DuplicateConnection", id),
   testConnection: (p: Profile, useStored: boolean) => call("TestConnection", p, useStored),
   connect: (id: string) => call("Connect", id),
   disconnect: (id: string) => call("Disconnect", id),

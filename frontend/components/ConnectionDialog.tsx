@@ -2,13 +2,14 @@
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle, FolderOpen, LinkSimple, MagnifyingGlass, WarningCircle, X } from "@phosphor-icons/react";
+import { CheckCircle, FolderOpen, LinkSimple, MagnifyingGlass, Trash, WarningCircle, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { api, emptyConfig, type DriverInfo, type Profile } from "@/lib/api";
 import { swatches } from "@/lib/engines";
 import { useStore } from "@/lib/store";
 import { Button, EngineBadge, IconButton, Input, Label, Select, Spinner } from "./common";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { deleteConnection } from "./ConnectionMenu";
 import { Switch } from "@/components/ui/switch";
 
 const familyLabel = { sql: "Relational", document: "Document", keyvalue: "Key-value" } as const;
@@ -294,6 +295,17 @@ function DialogBody({ initial }: { initial?: Profile }) {
               <Button type="button" onClick={runTest} disabled={test.state === "busy"}>
                 {test.state === "busy" ? <Spinner /> : null} Test
               </Button>
+              {editing && (
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={async () => {
+                    if (initial && (await deleteConnection(initial))) close();
+                  }}
+                >
+                  <Trash aria-hidden className="size-3.5" /> Delete
+                </Button>
+              )}
               <div className="ml-auto flex gap-2">
                 <Button type="button" variant="ghost" onClick={() => save(false)} disabled={saving}>
                   Save

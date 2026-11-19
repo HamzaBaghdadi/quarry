@@ -229,7 +229,8 @@ export function ConfirmHost() {
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
-            className={cn("h-8 cursor-pointer text-[13px]", req?.destructive ? "bg-destructive text-white hover:bg-destructive/90" : "bg-brand text-brand-fg hover:bg-brand/90")}
+            variant={req?.destructive ? "destructive" : "default"}
+            className="h-8 cursor-pointer text-[13px]"
             onClick={() => finish(true)}
           >
             {req?.confirmLabel ?? "Continue"}

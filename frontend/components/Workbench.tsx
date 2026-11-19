@@ -31,6 +31,7 @@ import { QueryTab } from "./QueryTab";
 import { Split } from "./Split";
 import { TableTab } from "./TableTab";
 import { Button, ConfirmHost, EngineBadge, IconButton, Kbd, Spinner, Tip, confirmDialog, mod } from "./common";
+import { ConnectionMenu, deleteConnection } from "./ConnectionMenu";
 import { SettingsMenu } from "./SettingsMenu";
 import { TitleBar } from "./TitleBar";
 import { UpdateDialog } from "./UpdateDialog";
@@ -115,6 +116,8 @@ function Rail() {
     <nav aria-label="Connections" className="flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-line bg-bg-0 py-2.5">
       <div className="flex min-h-0 flex-1 flex-col items-center gap-1.5 overflow-y-auto px-1">
         {connections.map((c) => (
+          <ConnectionMenu key={c.id} conn={c}>
+          <div>
           <Tip key={c.id} side="right" label={<span>{c.name}{c.connected && <span className="ml-1.5 text-run">● connected</span>}</span>}>
           <button
             onClick={() => connect(c.id)}
@@ -134,6 +137,8 @@ function Rail() {
             )}
           </button>
           </Tip>
+          </div>
+          </ConnectionMenu>
         ))}
         <IconButton label={`New connection (${mod()}+N)`} className="size-9 rounded-lg border border-dashed border-line-strong" onClick={() => openDialog()}>
           <Plus className="size-4" />
@@ -207,14 +212,7 @@ function Sidebar() {
           label="Delete connection"
           className="hover:!text-danger"
           onClick={() => {
-            void confirmDialog({
-              title: `Delete “${conn.name}”?`,
-              description: "The saved connection and its stored password are removed. Your database is not touched.",
-              confirmLabel: "Delete",
-              destructive: true,
-            }).then((ok) => {
-              if (ok) void removeConnection(activeId);
-            });
+            void deleteConnection(conn);
           }}
         >
           <Trash className="size-3.5" />
@@ -241,7 +239,8 @@ function SavedConnections() {
       </header>
       <ul className="min-h-0 flex-1 space-y-0.5 overflow-auto px-1.5">
         {connections.map((c) => (
-          <li key={c.id} className="group relative">
+          <ConnectionMenu key={c.id} conn={c}>
+          <li className="group relative">
             <button
               onClick={() => connect(c.id)}
               className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors duration-100 hover:bg-bg-2"
@@ -253,10 +252,16 @@ function SavedConnections() {
               </span>
               {connecting === c.id && <Spinner className="text-brand-text" />}
             </button>
-            <IconButton label={`Edit ${c.name}`} className="absolute right-1.5 top-1/2 hidden size-6 -translate-y-1/2 group-hover:inline-flex group-focus-within:inline-flex" onClick={() => openDialog(c)}>
-              <PencilSimple className="size-3.5" />
-            </IconButton>
+            <div className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded-md bg-bg-2 group-hover:flex group-focus-within:flex">
+              <IconButton label={`Edit ${c.name}`} className="size-6" onClick={() => openDialog(c)}>
+                <PencilSimple className="size-3.5" />
+              </IconButton>
+              <IconButton label={`Delete ${c.name}`} className="size-6 hover:!text-danger" onClick={() => void deleteConnection(c)}>
+                <Trash className="size-3.5" />
+              </IconButton>
+            </div>
           </li>
+          </ConnectionMenu>
         ))}
         {!connections.length && <p className="px-2 py-4 text-[12px] text-fg-subtle">No saved connections yet.</p>}
       </ul>

@@ -87,6 +87,17 @@ func (a *App) DeleteConnection(id string) error {
 	return a.store.Delete(id)
 }
 
+// DuplicateConnection copies a saved profile (including its stored password).
+func (a *App) DuplicateConnection(id string) (store.Profile, error) {
+	p, err := a.store.Get(id)
+	if err != nil {
+		return store.Profile{}, err
+	}
+	p.ID = ""
+	p.Name += " (copy)"
+	return a.store.Save(p, false)
+}
+
 // TestConnection dials without saving. If useStored is set and the password
 // is empty, the saved password for p.ID is used.
 func (a *App) TestConnection(p store.Profile, useStored bool) (string, error) {

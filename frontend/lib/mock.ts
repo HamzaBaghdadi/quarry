@@ -201,6 +201,12 @@ export function createMockBackend() {
     },
     RestartApp: async () => location.reload(),
     CloseWindow: async () => {},
+    DuplicateConnection: async (id: string) => {
+      const src = profiles.find((x) => x.id === id)!;
+      const copy = { ...src, id: crypto.randomUUID(), name: src.name + " (copy)", connected: false };
+      profiles.push(copy);
+      return copy;
+    },
     Restore: async (_id: string, _scope: string, path: string, runId: string) => simulate(runId, path, true),
   };
 }
