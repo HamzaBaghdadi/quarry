@@ -1,0 +1,8 @@
+Quarry
+Copyright 2026 Hamza Baghdadi and Quarry contributors
+
+This product includes software developed by third parties under their own
+licenses, including Wails (MIT), Next.js (MIT), CodeMirror (MIT),
+pgx (MIT), go-sql-driver/mysql (MPL-2.0), modernc.org/sqlite (BSD-3-Clause),
+go-mssqldb (BSD-3-Clause), clickhouse-go (Apache-2.0), mongo-go-driver
+(Apache-2.0), go-redis (BSD-2-Clause) and Phosphor Icons (MIT).

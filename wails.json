@@ -1,0 +1,21 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Quarry",
+  "outputfilename": "quarry",
+  "frontend:dir": "frontend",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm build",
+  "frontend:dev:watcher": "pnpm dev",
+  "frontend:dev:serverUrl": "http://localhost:3000",
+  "wailsjsdir": "./frontend/lib",
+  "author": {
+    "name": "Hamza Baghdadi"
+  },
+  "info": {
+    "companyName": "Quarry",
+    "productName": "Quarry",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 Quarry contributors. Licensed under Apache-2.0.",
+    "comments": "A small, fast client for every database."
+  }
+}

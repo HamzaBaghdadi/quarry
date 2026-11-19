@@ -1,0 +1,12 @@
+build/bin/
+frontend/node_modules/
+frontend/.next/
+frontend/out/*
+!frontend/out/.gitkeep
+frontend/lib/wailsjs/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+*.exe
+.DS_Store
+.env*
+.claude/
