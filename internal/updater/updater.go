@@ -36,13 +36,17 @@ type Release struct {
 	Notes       string `json:"notes"`
 	URL         string `json:"url"` // release page
 	PublishedAt string `json:"publishedAt"`
-	Size        int64  `json:"size"`
+	Size        int64  `json:"size"`   // bytes that will be downloaded
+	// Method is "replace" (swap the executable in place) or "installer"
+	// (Windows, when the install folder isn't writable).
+	Method string `json:"method"`
 
 	asset     string // binary download URL
 	installer string // Windows installer URL (optional)
 	checksums string // checksums.txt URL
 	assetName string
 	instName  string
+	instSize  int64
 }
 
 type ghAsset struct {
@@ -116,11 +120,15 @@ func Check(ctx context.Context, current string) (*Release, error) {
 		case a.Name == "checksums.txt":
 			rel.checksums = a.URL
 		case runtime.GOOS == "windows" && strings.HasSuffix(a.Name, "-installer.exe"):
-			rel.installer, rel.instName = a.URL, a.Name
+			rel.installer, rel.instName, rel.instSize = a.URL, a.Name, a.Size
 		}
 	}
 	if rel.asset == "" {
 		return nil, fmt.Errorf("release %s has no build for %s/%s", latest, runtime.GOOS, runtime.GOARCH)
+	}
+	rel.Method = "replace"
+	if runtime.GOOS == "windows" && rel.installer != "" && !canReplaceSelf() {
+		rel.Method, rel.Size = "installer", rel.instSize
 	}
 	return rel, nil
 }
@@ -250,8 +258,8 @@ func runInstaller(ctx context.Context, rel *Release, sums map[string]string, p P
 		return err
 	}
 	f.Close()
-	// The installer asks for elevation itself and replaces the installed copy.
-	return exec.Command(name, "/S").Start()
+	// Silent install; the installer waits for Quarry to exit, then reopens it.
+	return launch(name, "/S")
 }
 
 func checksums(ctx context.Context, url string) (map[string]string, error) {
@@ -335,4 +343,23 @@ func resign(exe string) {
 		return
 	}
 	_ = exec.Command("/usr/bin/codesign", "--force", "--deep", "--sign", "-", exe[:i+4]).Run()
+}
+
+// canReplaceSelf reports whether the running executable's folder is writable.
+func canReplaceSelf() bool {
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	if exe, err = filepath.EvalSymlinks(exe); err != nil {
+		return false
+	}
+	f, err := os.CreateTemp(filepath.Dir(exe), ".quarry-write-test-*")
+	if err != nil {
+		return false
+	}
+	name := f.Name()
+	f.Close()
+	os.Remove(name)
+	return true
 }

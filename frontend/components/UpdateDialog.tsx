@@ -8,42 +8,105 @@ import { Button, Spinner } from "./common";
 
 const mb = (n: number) => `${(n / (1 << 20)).toFixed(1)} MB`;
 
-/** Renders GitHub release notes (light markdown: headings, bullets, code). */
+/** Inline markdown: `code`, **bold**, [links](url) and bare URLs. */
+function Inline({ text }: { text: string }) {
+  const out: React.ReactNode[] = [];
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\[[^\]]+\]\([^)]+\))|(https?:\/\/[^\s)]+)/g;
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index! > last) out.push(text.slice(last, m.index));
+    const [tok] = m;
+    const key = m.index;
+    if (m[1]) {
+      out.push(
+        <code key={key} className="rounded bg-bg-3 px-1 font-mono text-[12px] text-fg">
+          {tok.slice(1, -1)}
+        </code>,
+      );
+    } else if (m[2]) {
+      out.push(
+        <strong key={key} className="font-semibold text-fg">
+          {tok.slice(2, -2)}
+        </strong>,
+      );
+    } else {
+      const [, label, url] = m[3] ? /\[([^\]]+)\]\(([^)]+)\)/.exec(tok)! : [tok, tok.replace(/^https:\/\/github\.com\/[^/]+\/[^/]+\//, ""), tok];
+      out.push(
+        <button key={key} onClick={() => win.openURL(url)} className="cursor-pointer text-brand-text underline-offset-2 hover:underline">
+          {label}
+        </button>,
+      );
+    }
+    last = m.index! + tok.length;
+  }
+  out.push(text.slice(last));
+  return <>{out}</>;
+}
+
+/**
+ * Renders GitHub release notes: headings, bullets, tables and inline markup.
+ * The "Download" section is dropped — you're already updating in the app.
+ */
 function Notes({ text }: { text: string }) {
   const lines = text.replace(/\r/g, "").split("\n");
-  return (
-    <div className="selectable space-y-1.5 text-[13px] leading-relaxed text-fg-muted">
-      {lines.map((l, i) => {
-        const t = l.trim();
-        if (!t) return null;
-        if (/^#{1,6}\s/.test(t))
-          return (
-            <h4 key={i} className="pt-1.5 text-[12px] font-semibold uppercase tracking-wider text-fg">
-              {t.replace(/^#+\s*/, "")}
-            </h4>
-          );
-        const bullet = /^[-*]\s+/.test(t);
-        const body = t.replace(/^[-*]\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1");
-        const parts = body.split(/(`[^`]+`)/g).map((p, j) =>
-          p.startsWith("`") ? (
-            <code key={j} className="rounded bg-bg-3 px-1 font-mono text-[12px] text-fg">
-              {p.slice(1, -1)}
-            </code>
-          ) : (
-            p
-          ),
+  const blocks: React.ReactNode[] = [];
+  let skipping = false;
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    const heading = /^(#{1,6})\s+(.*)$/.exec(t);
+    if (heading) {
+      skipping = /download|install/i.test(heading[2]);
+      if (!skipping)
+        blocks.push(
+          <h4 key={i} className="pt-2 text-[11.5px] font-semibold uppercase tracking-wider text-fg">
+            {heading[2]}
+          </h4>,
         );
-        return bullet ? (
-          <div key={i} className="flex gap-2">
-            <span aria-hidden className="mt-[9px] size-1 shrink-0 rounded-full bg-fg-subtle" />
-            <span>{parts}</span>
-          </div>
-        ) : (
-          <p key={i}>{parts}</p>
-        );
-      })}
-    </div>
-  );
+      continue;
+    }
+    if (skipping || !t) continue;
+    if (t.startsWith("|")) {
+      const rows: string[][] = [];
+      for (; i < lines.length && lines[i].trim().startsWith("|"); i++) {
+        const cells = lines[i].trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        if (!cells.every((c) => /^:?-+:?$/.test(c))) rows.push(cells);
+      }
+      i--;
+      blocks.push(
+        <table key={i} className="w-full border-collapse text-[12.5px]">
+          <tbody>
+            {rows.map((r, ri) => (
+              <tr key={ri} className="border-b border-line last:border-0">
+                {r.map((c, ci) => (
+                  <td key={ci} className={ci === 0 ? "py-1 pr-3 text-fg" : "py-1"}>
+                    <Inline text={c} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>,
+      );
+      continue;
+    }
+    if (/^[-*]\s+/.test(t)) {
+      blocks.push(
+        <div key={i} className="flex gap-2">
+          <span aria-hidden className="mt-[9px] size-1 shrink-0 rounded-full bg-fg-subtle" />
+          <span className="min-w-0">
+            <Inline text={t.replace(/^[-*]\s+/, "")} />
+          </span>
+        </div>,
+      );
+      continue;
+    }
+    blocks.push(
+      <p key={i}>
+        <Inline text={t} />
+      </p>,
+    );
+  }
+  return <div className="selectable space-y-1.5 text-[13px] leading-relaxed text-fg-muted">{blocks}</div>;
 }
 
 export function UpdateDialog() {
@@ -67,11 +130,17 @@ export function UpdateDialog() {
             <DialogTitle className="text-[15px] font-semibold">Quarry {rel?.version} is available</DialogTitle>
             <DialogDescription className="mt-0.5 text-[12.5px] text-fg-subtle">
               {rel?.publishedAt ? `Released ${new Date(rel.publishedAt).toLocaleDateString()}` : ""}
-              {rel?.size ? ` · ${mb(rel.size)}` : ""}
+              {rel?.size ? ` · ${mb(rel.size)} download` : ""}
             </DialogDescription>
           </div>
         </div>
 
+        {rel?.method === "installer" && status !== "error" && (
+          <p className="mx-5 mb-3 rounded-md border border-line bg-bg-0 px-3 py-2 text-[12px] text-fg-muted">
+            Quarry is installed in a protected folder, so the update runs the installer: Quarry closes, updates and reopens by itself.
+            Windows may ask for permission.
+          </p>
+        )}
         <div className="max-h-[300px] overflow-auto border-y border-line bg-bg-0 px-5 py-3">
           {rel?.notes ? <Notes text={rel.notes} /> : <p className="text-[13px] text-fg-subtle">No release notes.</p>}
         </div>

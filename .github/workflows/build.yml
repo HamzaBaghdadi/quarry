@@ -80,7 +80,8 @@ jobs:
       - name: Build
         run: |
           EXTRA=""
-          if [[ "${{ matrix.target }}" == "windows" ]]; then EXTRA="-nsis"; fi
+          # Per-user installer (no admin prompt) so in-app updates can replace the exe.
+          if [[ "${{ matrix.target }}" == "windows" ]]; then EXTRA="-nsis -installscope user"; fi
           wails build -clean -platform ${{ matrix.platform }} $EXTRA -ldflags "-X main.version=${{ steps.v.outputs.version }}"
           ls -la build/bin
 

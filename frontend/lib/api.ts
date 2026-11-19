@@ -146,6 +146,7 @@ export interface UpdateInfo {
   url: string;
   publishedAt: string;
   size: number;
+  method?: "replace" | "installer";
 }
 
 declare global {

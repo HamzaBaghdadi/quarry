@@ -185,7 +185,9 @@ export function createMockBackend() {
     CheckForUpdate: async () => ({
       version: "0.3.0",
       name: "Quarry 0.3.0",
-      notes: "## What's new\n- Demo release notes shown in browser mode\n- Faster grid search\n\n## Fixes\n- Example fix",
+      notes:
+        "## Download\n\n| Platform | File |\n| --- | --- |\n| Windows (installer) | `quarry-windows-amd64-installer.exe` |\n\n**macOS:** run `xattr -cr Quarry.app` once.\n\n## What's Changed\n* Fit window to the screen on launch by @HamzaBaghdadi in https://github.com/HamzaBaghdadi/quarry/pull/12\n* **Search** across all rows with `Ctrl+F`\n\n| Engine | Status |\n| --- | --- |\n| PostgreSQL | ✓ |\n\n**Full Changelog**: https://github.com/HamzaBaghdadi/quarry/compare/v0.2.1...v0.2.2",
+      method: "installer" as const,
       url: "https://github.com/HamzaBaghdadi/quarry/releases",
       publishedAt: new Date().toISOString(),
       size: 14_000_000,
