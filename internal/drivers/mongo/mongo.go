@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -140,6 +141,9 @@ func (c *conn) Browse(ctx context.Context, req driver.BrowseRequest) (*driver.Re
 		if err := bson.UnmarshalExtJSON([]byte(js), false, &filter); err != nil {
 			return nil, fmt.Errorf("filter: %w", err)
 		}
+	}
+	if term := strings.TrimSpace(req.Search); term != "" {
+		filter = append(filter, bson.E{Key: "$expr", Value: anyFieldMatches(term)})
 	}
 	fo := options.Find().SetLimit(int64(req.Limit + 1)).SetSkip(int64(req.Offset))
 	if req.OrderBy != "" {
@@ -540,4 +544,22 @@ func cell(v any) any {
 		return fmt.Sprintf("Binary(%d bytes)", len(x.Data))
 	}
 	return driver.Normalize(v)
+}
+
+// anyFieldMatches builds an $expr that is true when any top-level field,
+// rendered as a string, contains term (case-insensitive).
+func anyFieldMatches(term string) bson.D {
+	str := bson.D{{Key: "$convert", Value: bson.D{
+		{Key: "input", Value: "$$f.v"}, {Key: "to", Value: "string"},
+		{Key: "onError", Value: ""}, {Key: "onNull", Value: ""},
+	}}}
+	return bson.D{{Key: "$anyElementTrue", Value: bson.A{bson.D{{Key: "$map", Value: bson.D{
+		{Key: "input", Value: bson.D{{Key: "$objectToArray", Value: "$$ROOT"}}},
+		{Key: "as", Value: "f"},
+		{Key: "in", Value: bson.D{{Key: "$regexMatch", Value: bson.D{
+			{Key: "input", Value: str},
+			{Key: "regex", Value: regexp.QuoteMeta(term)},
+			{Key: "options", Value: "i"},
+		}}}},
+	}}}}}}
 }

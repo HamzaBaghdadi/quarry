@@ -109,3 +109,25 @@ func TestBackupRestore(t *testing.T) {
 		t.Fatal("index not restored")
 	}
 }
+
+func TestSearchAnyColumn(t *testing.T) {
+	ctx := context.Background()
+	c := open(t)
+	mustExec(t, c, "CREATE TABLE p (id INTEGER PRIMARY KEY, name TEXT, city TEXT, n INTEGER)")
+	mustExec(t, c, "INSERT INTO p (name, city, n) VALUES ('Ada', 'London', 10), ('Linus', 'Helsinki', 2024), ('Grace', 'NYC', 7), ('O''Brien', 'Dublin', NULL)")
+	cases := map[string]int{"lin": 2, "2024": 1, "o'b": 1, "zzz": 0, "": 4}
+	for term, want := range cases {
+		r, err := c.Browse(ctx, driver.BrowseRequest{Path: []string{"p"}, Limit: 50, Search: term})
+		if err != nil {
+			t.Fatalf("%q: %v", term, err)
+		}
+		if len(r.Rows) != want {
+			t.Errorf("search %q: %d rows, want %d", term, len(r.Rows), want)
+		}
+	}
+	// Search combines with a filter.
+	r, err := c.Browse(ctx, driver.BrowseRequest{Path: []string{"p"}, Limit: 50, Search: "lin", Filter: "n > 100"})
+	if err != nil || len(r.Rows) != 1 {
+		t.Fatalf("search+filter: %v rows, err %v", len(r.Rows), err)
+	}
+}

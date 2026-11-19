@@ -249,6 +249,18 @@ func (c *conn) Browse(ctx context.Context, req driver.BrowseRequest) (*driver.Re
 	default:
 		return nil, fmt.Errorf("unsupported key type %q", typ)
 	}
+	if term := strings.ToLower(strings.TrimSpace(req.Search)); term != "" {
+		kept := r.Rows[:0]
+		for _, row := range r.Rows {
+			for _, v := range row {
+				if strings.Contains(strings.ToLower(fmt.Sprint(v)), term) {
+					kept = append(kept, row)
+					break
+				}
+			}
+		}
+		r.Rows = kept
+	}
 	if len(r.Rows) > int(limit) {
 		r.Rows, r.HasMore = r.Rows[:limit], true
 	}

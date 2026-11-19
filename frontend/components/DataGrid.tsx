@@ -3,9 +3,12 @@
 import clsx from "clsx";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowDown, ArrowUp, Key } from "@phosphor-icons/react";
+import { ArrowDown, ArrowUp, Copy, Key, PencilSimple, Prohibit, Rows, SidebarSimple, TextT, Trash } from "@phosphor-icons/react";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { mod } from "./common";
 import type { Cell, Column } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import { Input as UIInput } from "@/components/ui/input";
 import { toast } from "sonner";
 
 const ROW_H = 26;
@@ -44,6 +47,7 @@ export const DataGrid = memo(function DataGrid({
   onSort,
   label,
   edits,
+  find,
 }: {
   columns: Column[];
   rows: Cell[][];
@@ -52,6 +56,7 @@ export const DataGrid = memo(function DataGrid({
   onSort?: (col: string) => void;
   label: string;
   edits?: GridEdits;
+  find?: { term: string; matchCase: boolean; current?: { r: number; c: number } };
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [widths, setWidths] = useState<number[]>([]);
@@ -208,6 +213,20 @@ export const DataGrid = memo(function DataGrid({
     window.addEventListener("pointerup", up);
   };
 
+  // Bring the current find match into view.
+  const cur = find?.current;
+  useEffect(() => {
+    if (!cur) return;
+    v.scrollToIndex(cur.r, { align: "center" });
+    const el = scrollRef.current;
+    if (el) {
+      const left = NUM_W + widths.slice(0, cur.c).reduce((a, b) => a + b, 0);
+      const right = left + (widths[cur.c] ?? 120);
+      if (left - NUM_W < el.scrollLeft || right > el.scrollLeft + el.clientWidth) el.scrollLeft = Math.max(0, left - NUM_W - 40);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cur?.r, cur?.c]);
+
   // Keep the newest added row in view.
   const addedCount = edits?.added.length ?? 0;
   useEffect(() => {
@@ -218,7 +237,13 @@ export const DataGrid = memo(function DataGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addedCount]);
 
+  const menuCell = sel;
+  const menuValue = menuCell ? valueAt(menuCell.r, menuCell.c) : undefined;
+  const mi = "cursor-pointer gap-2.5 text-[13px] [&_svg]:size-4 [&_svg]:text-fg-muted";
+
   return (
+    <ContextMenu>
+    <ContextMenuTrigger asChild>
     <div
       ref={scrollRef}
       tabIndex={0}
@@ -247,19 +272,19 @@ export const DataGrid = memo(function DataGrid({
                 <button
                   disabled={!onSort}
                   onClick={() => onSort?.(col.name)}
-                  title={onSort ? `Sort by ${col.name}` : col.name}
+                 
                   className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-1.5 px-2 text-left font-sans hover:bg-bg-2 disabled:cursor-default disabled:hover:bg-transparent"
                 >
                   {isKey && <Key aria-label="Primary key" weight="fill" className="size-3 shrink-0 text-warn" />}
                   <span className="truncate text-[12px] font-semibold text-fg">{col.name}</span>
                   {col.type && <span className="truncate text-[10.5px] font-normal uppercase tracking-wide text-fg-subtle">{col.type}</span>}
-                  {sorted && (sort!.desc ? <ArrowDown aria-hidden className="ml-auto size-3 shrink-0 text-accent" weight="bold" /> : <ArrowUp aria-hidden className="ml-auto size-3 shrink-0 text-accent" weight="bold" />)}
+                  {sorted && (sort!.desc ? <ArrowDown aria-hidden className="ml-auto size-3 shrink-0 text-brand-text" weight="bold" /> : <ArrowUp aria-hidden className="ml-auto size-3 shrink-0 text-brand-text" weight="bold" />)}
                 </button>
                 <span
                   aria-hidden
                   onPointerDown={(e) => startResize(i, e)}
                   onDoubleClick={() => setWidths((ws) => ws.map((w, j) => (j === i ? guessWidth(col, rows, i) : w)))}
-                  className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-accent/60"
+                  className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-brand/60"
                 />
               </div>
             );
@@ -288,7 +313,7 @@ export const DataGrid = memo(function DataGrid({
                     "sticky left-0 z-10 flex items-center justify-end border-r border-line bg-bg-0 pr-2 text-[11px] tabular-nums",
                     isDeleted ? "text-danger" : isNew ? "text-run" : "text-fg-subtle",
                   )}
-                  title={isDeleted ? "Will be deleted" : isNew ? "New row" : undefined}
+                 
                 >
                   {isDeleted ? "−" : isNew ? "+" : offset + r + 1}
                 </div>
@@ -303,13 +328,15 @@ export const DataGrid = memo(function DataGrid({
                       role="gridcell"
                       aria-selected={selected}
                       onMouseDown={() => setSel({ r, c: ci })}
+                      onContextMenu={() => setSel({ r, c: ci })}
                       onDoubleClick={() => (edits ? startEdit(r, ci) : openInspector(r, ci))}
                       className={clsx(
                         "relative flex min-w-0 cursor-default items-center overflow-hidden border-r border-line/70 px-2",
                         typeof value === "number" && "justify-end",
                         changed && !isNew && "bg-warn/15",
                         isDeleted && "line-through decoration-danger/70",
-                        selected && !isEditing && "bg-accent-soft outline outline-2 -outline-offset-2 outline-accent",
+                        selected && !isEditing && "bg-brand-soft outline outline-2 -outline-offset-2 outline-brand",
+                        cur?.r === r && cur?.c === ci && "hit-current",
                       )}
                     >
                       {isEditing ? (
@@ -325,7 +352,7 @@ export const DataGrid = memo(function DataGrid({
                       ) : isNew && value === undefined ? (
                         <span className="text-[11px] italic text-fg-subtle">DEFAULT</span>
                       ) : (
-                        <CellText v={value ?? null} />
+                        <CellText v={value ?? null} find={find} />
                       )}
                     </div>
                   );
@@ -336,6 +363,44 @@ export const DataGrid = memo(function DataGrid({
         </div>
       </div>
     </div>
+    </ContextMenuTrigger>
+    <ContextMenuContent className="w-56 border-line-strong bg-popover font-sans">
+      {menuCell ? (
+        <>
+          <ContextMenuItem className={mi} onSelect={() => copy(formatCell(menuValue), "value")}>
+            <Copy /> Copy value <ContextMenuShortcut>{mod()} C</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem className={mi} onSelect={() => copy(columns.map((_, i) => formatCell(valueAt(menuCell.r, i))).join("	"), "row")}>
+            <Rows /> Copy row <ContextMenuShortcut>{mod()} ⇧ C</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem className={mi} onSelect={() => copy(columns[menuCell.c].name, "column name")}>
+            <TextT /> Copy column name
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem className={mi} onSelect={() => openInspector(menuCell.r, menuCell.c)}>
+            <SidebarSimple /> Inspect value <ContextMenuShortcut>Space</ContextMenuShortcut>
+          </ContextMenuItem>
+          {edits && (
+            <>
+              <ContextMenuItem className={mi} disabled={!canEdit(menuCell.r)} onSelect={() => setTimeout(() => startEdit(menuCell.r, menuCell.c), 0)}>
+                <PencilSimple /> Edit cell <ContextMenuShortcut>F2</ContextMenuShortcut>
+              </ContextMenuItem>
+              <ContextMenuItem className={mi} disabled={!canEdit(menuCell.r)} onSelect={() => edits.onEdit(menuCell.r, columns[menuCell.c].name, null)}>
+                <Prohibit /> Set NULL
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem className={`${mi} text-danger focus:text-danger [&_svg]:!text-danger`} onSelect={() => edits.onToggleDelete(menuCell.r)}>
+                <Trash /> {edits.deleted.has(menuCell.r) ? "Keep row" : menuCell.r >= rows.length ? "Remove new row" : "Delete row"}
+                <ContextMenuShortcut>Del</ContextMenuShortcut>
+              </ContextMenuItem>
+            </>
+          )}
+        </>
+      ) : (
+        <ContextMenuItem disabled className="text-[13px]">Right-click a cell</ContextMenuItem>
+      )}
+    </ContextMenuContent>
+    </ContextMenu>
   );
 });
 
@@ -364,8 +429,8 @@ function CellEditor({
     onCommit(text, move);
   };
   return (
-    <div className="absolute inset-0 z-10 flex items-stretch bg-bg-0 ring-2 ring-accent ring-inset">
-      <input
+    <div className="absolute inset-0 z-10 flex items-stretch bg-bg-0 ring-2 ring-brand ring-inset">
+      <UIInput
         ref={ref}
         defaultValue={initial}
         placeholder={wasNull ? "NULL" : ""}
@@ -383,11 +448,11 @@ function CellEditor({
           }
         }}
         onBlur={(e) => finish(e.currentTarget.value)}
-        className="min-w-0 flex-1 bg-transparent px-2 font-mono text-[12.5px] text-fg outline-none"
+        className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-2 font-mono text-[12.5px] text-fg shadow-none focus-visible:ring-0 dark:bg-transparent"
       />
       <button
         type="button"
-        title="Set to NULL"
+        aria-label="Set to NULL"
         onMouseDown={(e) => {
           e.preventDefault();
           finish(null, "down");
@@ -400,11 +465,30 @@ function CellEditor({
   );
 }
 
-function CellText({ v }: { v: Cell }) {
+function Highlight({ text, term, matchCase }: { text: string; term: string; matchCase: boolean }) {
+  const hay = matchCase ? text : text.toLowerCase();
+  const needle = matchCase ? term : term.toLowerCase();
+  const parts: React.ReactNode[] = [];
+  let i = 0;
+  for (let at = hay.indexOf(needle); at !== -1 && needle; at = hay.indexOf(needle, i)) {
+    if (at > i) parts.push(text.slice(i, at));
+    parts.push(
+      <mark key={at} className="hit">
+        {text.slice(at, at + needle.length)}
+      </mark>,
+    );
+    i = at + needle.length;
+  }
+  parts.push(text.slice(i));
+  return <>{parts}</>;
+}
+
+function CellText({ v, find }: { v: Cell; find?: { term: string; matchCase: boolean } }) {
+  const show = (s: string) => (find ? <Highlight text={s} term={find.term} matchCase={find.matchCase} /> : s);
   if (v === null || v === undefined) return <span className="text-[11px] italic text-[var(--null)]">NULL</span>;
   if (typeof v === "boolean") return <span className="text-[var(--bool)]">{v ? "true" : "false"}</span>;
-  if (typeof v === "number") return <span className="tabular-nums text-[var(--num)]">{v}</span>;
+  if (typeof v === "number") return <span className="tabular-nums text-[var(--num)]">{show(String(v))}</span>;
   const s = v.length > 300 ? v.slice(0, 300) + "…" : v;
   const json = s.startsWith("{") || s.startsWith("[");
-  return <span className={clsx("truncate whitespace-pre", json ? "text-fg-muted" : "text-[var(--str)]")}>{s.replace(/\n/g, "↵")}</span>;
+  return <span className={clsx("truncate whitespace-pre", json ? "text-fg-muted" : "text-[var(--str)]")}>{show(s.replace(/\n/g, "↵"))}</span>;
 }

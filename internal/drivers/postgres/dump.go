@@ -221,3 +221,7 @@ func (d dialect) createTable(ctx context.Context, q sqlbase.Querier, ref string)
 	}
 	return "CREATE TABLE " + ref + " (\n" + strings.Join(defs, ",\n") + "\n)", dataCols, always, identity, rows.Err()
 }
+
+func (dialect) SearchExpr(col, term string) string {
+	return "CAST(" + col + " AS text) ILIKE " + sqlbase.QuoteLike(term, false)
+}

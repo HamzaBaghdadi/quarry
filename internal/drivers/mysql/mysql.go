@@ -205,3 +205,7 @@ func (d dialect) Plan(ctx context.Context, q sqlbase.Querier, scope string) (*sq
 	}
 	return plan, nil
 }
+
+func (dialect) SearchExpr(col, term string) string {
+	return "CAST(" + col + " AS CHAR) LIKE " + sqlbase.QuoteLike(term, true)
+}

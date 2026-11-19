@@ -138,3 +138,7 @@ func (d dialect) PrimaryKey(ctx context.Context, e *sqlbase.Engine, path []strin
 		WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY' AND tc.TABLE_SCHEMA = @p1 AND tc.TABLE_NAME = @p2
 		ORDER BY kcu.ORDINAL_POSITION`, path[1], path[2])
 }
+
+func (dialect) SearchExpr(col, term string) string {
+	return "TRY_CAST(" + col + " AS NVARCHAR(4000)) LIKE N" + sqlbase.QuoteLike(term, false)
+}

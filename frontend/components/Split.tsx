@@ -92,7 +92,7 @@ export function Split({
         onPointerDown={onPointerDown}
         onKeyDown={onKeyDown}
         className={clsx(
-          "group relative z-10 shrink-0 bg-line transition-colors duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
+          "group relative z-10 shrink-0 bg-line transition-colors duration-150 hover:bg-brand focus-visible:bg-brand focus-visible:outline-none",
           horizontal ? "w-px cursor-col-resize" : "h-px cursor-row-resize",
         )}
       >

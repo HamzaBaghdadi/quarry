@@ -65,12 +65,16 @@ const profiles: Connection[] = [
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function page(name: string, offset: number, limit: number, filter: string, orderBy: string, desc: boolean): Result {
+function page(name: string, offset: number, limit: number, filter: string, orderBy: string, desc: boolean, search = ""): Result {
   const t = tables[name] ?? tables.users;
   let rows = t.rows;
   if (filter) {
     const needle = filter.replace(/.*=\s*'?|'$/g, "").toLowerCase();
     rows = rows.filter((r) => r.some((c) => String(c).toLowerCase().includes(needle)));
+  }
+  if (search) {
+    const s = search.toLowerCase();
+    rows = rows.filter((r) => r.some((c) => c !== null && String(c).toLowerCase().includes(s)));
   }
   if (orderBy) {
     const i = t.columns.findIndex((c) => c.name === orderBy);
@@ -131,10 +135,10 @@ export function createMockBackend() {
         { name: "active_users", kind: "view", path: [...path, "active_users"], hasChildren: false, browsable: true },
       ];
     },
-    Browse: async (_id: string, req: { path: string[]; offset: number; limit: number; filter: string; orderBy: string; desc: boolean }) => {
+    Browse: async (_id: string, req: { path: string[]; offset: number; limit: number; filter: string; search?: string; orderBy: string; desc: boolean }) => {
       await wait(150);
       const name = req.path[req.path.length - 1];
-      const r = page(name === "orders" ? "orders" : "users", req.offset, req.limit, req.filter, req.orderBy, req.desc);
+      const r = page(name === "orders" ? "orders" : "users", req.offset, req.limit, req.filter, req.orderBy, req.desc, req.search);
       if (name === "active_users") return { ...r, editBlocked: "Views can't be edited." };
       const conn = profiles.find((p) => p.id === _id);
       if (conn?.readOnly) return { ...r, editBlocked: "This connection is read-only." };
@@ -178,6 +182,22 @@ export function createMockBackend() {
     },
     Backup: async (_id: string, scope: string, runId: string) => simulate(runId, `~/Backups/demo-${scope || "db"}.sql`, false),
     PickBackupFile: async () => "~/Backups/demo-app-20261119.sql",
+    CheckForUpdate: async () => ({
+      version: "0.3.0",
+      name: "Quarry 0.3.0",
+      notes: "## What's new\n- Demo release notes shown in browser mode\n- Faster grid search\n\n## Fixes\n- Example fix",
+      url: "https://github.com/HamzaBaghdadi/quarry/releases",
+      publishedAt: new Date().toISOString(),
+      size: 14_000_000,
+    }),
+    InstallUpdate: async () => {
+      for (let i = 1; i <= 20; i++) {
+        await wait(80);
+        window.dispatchEvent(new CustomEvent("quarry:update-progress", { detail: { done: i * 700_000, total: 14_000_000 } }));
+      }
+      return "restart" as const;
+    },
+    RestartApp: async () => location.reload(),
     Restore: async (_id: string, _scope: string, path: string, runId: string) => simulate(runId, path, true),
   };
 }

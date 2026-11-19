@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import { api, emptyConfig, type DriverInfo, type Profile } from "@/lib/api";
 import { swatches } from "@/lib/engines";
 import { useStore } from "@/lib/store";
-import { Button, EngineBadge, IconButton, Input, Label, Select, Spinner } from "./ui";
+import { Button, EngineBadge, IconButton, Input, Label, Select, Spinner } from "./common";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 
 const familyLabel = { sql: "Relational", document: "Document", keyvalue: "Key-value" } as const;
 
@@ -38,12 +40,6 @@ function DialogBody({ initial }: { initial?: Profile }) {
   const drv = drivers.find((d) => d.id === p.driver);
   const has = (f: string) => !!drv?.fields.includes(f as never);
 
-  // Esc closes; focus stays inside the dialog.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [close]);
 
   const grouped = useMemo(() => {
     const q = search.toLowerCase();
@@ -98,21 +94,20 @@ function DialogBody({ initial }: { initial?: Profile }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div
+    <Dialog open onOpenChange={(o) => !o && close()}>
+      <DialogContent
         ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="conn-title"
-        className="animate-pop flex max-h-full w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-line-strong bg-bg-1 shadow-pop"
+        showCloseButton={false}
+        aria-describedby={undefined}
+        className="flex max-h-[calc(100vh-48px)] w-full max-w-[640px] flex-col gap-0 overflow-hidden rounded-xl border-line-strong bg-bg-1 p-0 shadow-pop sm:max-w-[640px]"
       >
         <header className="flex h-12 shrink-0 items-center gap-2.5 border-b border-line px-4">
           {step === "form" && drv && <EngineBadge driver={drv.id} size={24} />}
-          <h2 id="conn-title" className="text-[14px] font-semibold">
+          <DialogTitle className="text-[14px] font-semibold">
             {editing ? `Edit ${initial?.name}` : step === "engine" ? "New connection" : `New ${drv?.name} connection`}
-          </h2>
+          </DialogTitle>
           {step === "form" && !editing && (
-            <button onClick={() => setStep("engine")} className="cursor-pointer text-[12px] text-accent hover:underline">
+            <button onClick={() => setStep("engine")} className="cursor-pointer text-[12px] text-brand-text hover:underline">
               Change engine
             </button>
           )}
@@ -135,7 +130,7 @@ function DialogBody({ initial }: { initial?: Profile }) {
                     <button
                       key={d.id}
                       onClick={() => pick(d)}
-                      className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-line bg-bg-0 p-2.5 text-left transition-colors duration-150 hover:border-accent hover:bg-bg-2"
+                      className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-line bg-bg-0 p-2.5 text-left transition-colors duration-150 hover:border-brand hover:bg-bg-2"
                     >
                       <EngineBadge driver={d.id} size={30} />
                       <span className="min-w-0">
@@ -265,13 +260,7 @@ function DialogBody({ initial }: { initial?: Profile }) {
                       {has("ssl") && drv?.sslModes && (
                         <div>
                           <Label htmlFor="c-ssl">{drv.id === "postgres" || drv.id === "cockroachdb" ? "SSL mode" : "TLS"}</Label>
-                          <Select id="c-ssl" value={p.config.sslMode} onChange={(e) => set("sslMode", e.target.value)}>
-                            {drv.sslModes.map((m) => (
-                              <option key={m} value={m}>
-                                {m}
-                              </option>
-                            ))}
-                          </Select>
+                          <Select id="c-ssl" value={p.config.sslMode} onChange={(v) => set("sslMode", v)} options={drv.sslModes.map((m) => ({ value: m, label: m }))} />
                         </div>
                       )}
                     </div>
@@ -279,12 +268,12 @@ function DialogBody({ initial }: { initial?: Profile }) {
                 )
               )}
 
-              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line bg-bg-0 p-2.5">
-                <input type="checkbox" checked={p.readOnly} onChange={(e) => setP({ ...p, readOnly: e.target.checked })} className="mt-0.5 size-4 cursor-pointer accent-[var(--accent)]" />
-                <span>
+              <label htmlFor="c-ro" className="flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-bg-0 p-3">
+                <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-medium">Read-only</span>
                   <span className="block text-[12px] text-fg-subtle">Block statements that write. Good for production.</span>
                 </span>
+                <Switch id="c-ro" checked={p.readOnly} onCheckedChange={(v) => setP({ ...p, readOnly: v })} className="cursor-pointer data-[state=checked]:bg-brand" />
               </label>
 
               {test.state !== "idle" && test.state !== "busy" && (
@@ -316,8 +305,8 @@ function DialogBody({ initial }: { initial?: Profile }) {
             </footer>
           </form>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

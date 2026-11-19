@@ -18,7 +18,7 @@ import {
 } from "@phosphor-icons/react";
 import type { NodeKind, TreeNode } from "@/lib/api";
 import { treeKey, useStore } from "@/lib/store";
-import { IconButton, Spinner } from "./ui";
+import { IconButton, Input, Spinner } from "./common";
 
 const icons: Record<NodeKind, typeof Database> = {
   database: Database,
@@ -78,14 +78,14 @@ export function Explorer({ connId }: { connId: string }) {
       <div className="flex items-center gap-1 px-2 pb-2">
         <div className="relative flex-1">
           <MagnifyingGlass aria-hidden className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-fg-subtle" />
-          <input
+          <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setFilter("")}
             placeholder="Filter loaded items"
             aria-label="Filter explorer"
             spellCheck={false}
-            className="h-7 w-full rounded-md border border-line bg-bg-0 pl-7 pr-2 text-[12px] text-fg placeholder:text-fg-subtle focus:border-accent focus:outline-none"
+            className="h-7 pl-7 text-[12px]"
           />
         </div>
         <IconButton label="Refresh explorer" onClick={() => loadChildren(connId, [], true)}>
@@ -182,15 +182,16 @@ const Row = memo(function Row({ connId, node, depth, flat }: { connId: string; n
     <>
       <div
         role="treeitem"
+        aria-label={flat ? node.path.join(" › ") : node.name}
         aria-expanded={expandable ? open : undefined}
         aria-selected={active}
         tabIndex={0}
         onClick={activate}
         onKeyDown={onKeyDown}
-        title={node.path.join(" › ")}
+
         className={clsx(
           "group flex h-[26px] cursor-pointer items-center gap-1.5 rounded-md pr-1 text-[13px] transition-colors duration-100 focus-visible:outline-offset-[-2px]",
-          active ? "bg-accent-soft text-fg" : "text-fg/90 hover:bg-bg-2",
+          active ? "bg-brand-soft text-fg" : "text-fg/90 hover:bg-bg-2",
         )}
         style={{ paddingLeft: 4 + depth * 14 }}
       >
@@ -204,7 +205,6 @@ const Row = memo(function Row({ connId, node, depth, flat }: { connId: string; n
         {node.kind === "database" && canBackup && (
           <button
             aria-label={`Back up ${node.name}`}
-            title={`Back up ${node.name}`}
             onClick={(e) => {
               e.stopPropagation();
               openBackup(connId, "backup", node.path[0]);
@@ -217,7 +217,6 @@ const Row = memo(function Row({ connId, node, depth, flat }: { connId: string; n
         {node.kind === "database" && (
           <button
             aria-label={`New query in ${node.name}`}
-            title={`New query in ${node.name}`}
             onClick={(e) => {
               e.stopPropagation();
               newQuery(connId, node.path[0]);

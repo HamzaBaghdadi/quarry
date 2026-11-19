@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Quarry
+Comment=A small, fast client for every database
+Exec=quarry
+Icon=quarry
+Terminal=false
+Categories=Development;Database;

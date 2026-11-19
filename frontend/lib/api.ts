@@ -62,6 +62,7 @@ export interface BrowseRequest {
   limit: number;
   offset: number;
   filter: string;
+  search?: string;
   orderBy: string;
   desc: boolean;
 }
@@ -132,6 +133,18 @@ interface Backend {
   Backup(id: string, scope: string, runId: string): Promise<BackupReport>;
   PickBackupFile(id: string): Promise<string>;
   Restore(id: string, scope: string, path: string, runId: string): Promise<BackupReport>;
+  CheckForUpdate(): Promise<UpdateInfo | null>;
+  InstallUpdate(): Promise<"restart" | "installer">;
+  RestartApp(): Promise<void>;
+}
+
+export interface UpdateInfo {
+  version: string;
+  name: string;
+  notes: string;
+  url: string;
+  publishedAt: string;
+  size: number;
 }
 
 declare global {
@@ -184,6 +197,9 @@ export const api = {
   backup: (id: string, scope: string, runId: string) => call("Backup", id, scope, runId),
   pickBackupFile: (id: string) => call("PickBackupFile", id),
   restore: (id: string, scope: string, path: string, runId: string) => call("Restore", id, scope, path, runId),
+  checkForUpdate: () => call("CheckForUpdate"),
+  installUpdate: () => call("InstallUpdate"),
+  restartApp: () => call("RestartApp"),
 };
 
 export const emptyConfig = (): ConnConfig => ({

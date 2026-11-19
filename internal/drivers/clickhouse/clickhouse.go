@@ -98,3 +98,7 @@ func (dialect) Children(ctx context.Context, e *sqlbase.Engine, path []string) (
 	return nil, nil
 }
 
+
+func (dialect) SearchExpr(col, term string) string {
+	return "toString(" + col + ") ILIKE " + sqlbase.QuoteLike(term, true)
+}

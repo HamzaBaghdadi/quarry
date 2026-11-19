@@ -112,6 +112,7 @@ type BrowseRequest struct {
 	Limit   int      `json:"limit"`
 	Offset  int      `json:"offset"`
 	Filter  string   `json:"filter"`  // SQL WHERE clause / Mongo JSON filter / Redis pattern
+	Search  string   `json:"search"`  // free text matched against every column
 	OrderBy string   `json:"orderBy"` // column / field name
 	Desc    bool     `json:"desc"`
 }

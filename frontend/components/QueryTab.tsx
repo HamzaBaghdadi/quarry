@@ -8,10 +8,11 @@ import { treeKey, useDriver, useStore, type Tab } from "@/lib/store";
 import { Editor } from "./Editor";
 import { ResultPanel } from "./ResultPanel";
 import { Split } from "./Split";
-import { Button, Kbd, mod } from "./ui";
+import { Button, Kbd, Select, Tip, mod } from "./common";
 
 export function QueryTab({ tab }: { tab: Tab }) {
   const conn = useStore((s) => s.connections.find((c) => c.id === tab.connId));
+  const active = useStore((s) => s.activeTab === tab.id);
   const driver = useDriver(conn?.driver);
   const rootNodes = useStore((s) => s.tree[treeKey(tab.connId, [])]?.nodes);
   const tree = useStore((s) => s.tree);
@@ -69,9 +70,11 @@ export function QueryTab({ tab }: { tab: Tab }) {
             <Stop aria-hidden weight="fill" className="size-3.5" /> Stop
           </Button>
         ) : (
-          <Button variant="run" size="sm" onClick={run} title={`Run (${mod()}+Enter). Runs the selection if any.`}>
+          <Tip label={<span>Run · runs the selection if any</span>}>
+          <Button variant="run" size="sm" onClick={run}>
             <Play aria-hidden weight="fill" className="size-3.5" /> Run
           </Button>
+          </Tip>
         )}
         <span className="hidden text-[11px] text-fg-subtle sm:inline">
           <Kbd>{mod()}</Kbd> <Kbd>Enter</Kbd>
@@ -81,24 +84,22 @@ export function QueryTab({ tab }: { tab: Tab }) {
           <label className="ml-2 flex items-center gap-1.5 text-[12px] text-fg-muted">
             <Database aria-hidden className="size-3.5" />
             <span className="sr-only">Database</span>
-            <select
+            <Select
+              aria-label="Database"
+              size="sm"
               value={tab.scope}
-              onChange={(e) => updateTab(tab.id, { scope: e.target.value })}
-              className="h-7 max-w-48 cursor-pointer rounded-md border border-line bg-bg-0 px-1.5 text-[12px] text-fg hover:border-line-strong focus:border-accent focus:outline-none"
-            >
-              <option value="">Default</option>
-              {scopes.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => updateTab(tab.id, { scope: v })}
+              className="max-w-52"
+              options={[{ value: "", label: "Default database" }, ...scopes.map((s) => ({ value: s, label: s }))]}
+            />
           </label>
         )}
         {conn?.readOnly && (
-          <span className="ml-auto flex items-center gap-1 rounded-full border border-warn/40 px-2 py-0.5 text-[11px] text-warn" title="Writes are blocked on this connection">
+          <Tip label="Writes are blocked on this connection">
+          <span className="ml-auto flex items-center gap-1 rounded-full border border-warn/40 px-2 py-0.5 text-[11px] text-warn">
             <LockSimple aria-hidden weight="fill" className="size-3" /> Read-only
           </span>
+          </Tip>
         )}
       </div>
 
@@ -129,6 +130,7 @@ export function QueryTab({ tab }: { tab: Tab }) {
             loading={running}
             onCancel={cancel}
             name={tab.title}
+            active={active}
             emptyHint={
               <span>
                 Press <Kbd>{mod()}</Kbd> <Kbd>Enter</Kbd> to run. Select text to run just that part.

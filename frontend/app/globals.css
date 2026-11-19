@@ -1,62 +1,91 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is([data-theme="dark"] *));
+
 /*
  * Quarry design tokens.
- * Style: Dark Mode (OLED) + Swiss minimalism, tuned for a dense developer tool.
- * Palette: slate surfaces, blue for focus/primary, green for "run", red for danger.
- * Type: IBM Plex Sans for UI, JetBrains Mono for data & code.
+ * Near-black, low-glare surfaces (layered #08 → #1c greys with a faint cool
+ * tint), one calm blue for focus and primary actions, green reserved for Run,
+ * red for destructive actions. Text contrast meets WCAG AA on every surface.
  */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg-0: #0b1120; /* window chrome, rails */
-  --bg-1: #0f172a; /* panels */
-  --bg-2: #162033; /* raised, hover */
-  --bg-3: #1e2a42; /* selected */
-  --line: #1e293b;
-  --line-strong: #2b3a55;
-  --fg: #f1f5f9;
-  --fg-muted: #94a3b8;
-  --fg-subtle: #7c8aa0;
-  --accent: #3b82f6;
-  --accent-fg: #ffffff;
-  --accent-soft: rgb(59 130 246 / 0.16);
+  --bg-0: #08080a; /* title bar, rails, footers */
+  --bg-1: #0c0c0f; /* panels, grid */
+  --bg-2: #141418; /* hover, raised controls */
+  --bg-3: #1c1c22; /* selected */
+  --line: #1d1d23;
+  --line-strong: #2a2a32;
+  --fg: #ededef;
+  --fg-muted: #a1a1aa;
+  --fg-subtle: #7d7d88;
+  --brand: #3b7cf6;
+  --brand-text: #7aa5ff; /* brand on dark surfaces (links, icons) */
+  --brand-fg: #ffffff;
+  --brand-soft: rgb(80 132 255 / 0.15);
   --run: #22c55e;
-  --run-fg: #052e16;
+  --run-fg: #03140a;
   --danger: #f87171;
-  --danger-soft: rgb(239 68 68 / 0.14);
+  --danger-soft: rgb(239 68 68 / 0.13);
   --warn: #fbbf24;
-  --null: #64748b;
-  --num: #7dd3fc;
-  --str: #e2e8f0;
+  --null: #5f5f6b;
+  --num: #8ab4ff;
+  --str: #e4e4e7;
   --bool: #c4b5fd;
-  --shadow: 0 16px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow: 0 24px 64px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06);
+
+  /* shadcn/ui tokens */
+  --background: var(--bg-1);
+  --foreground: var(--fg);
+  --card: var(--bg-1);
+  --card-foreground: var(--fg);
+  --popover: #111115;
+  --popover-foreground: var(--fg);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-fg);
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--fg);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--fg-muted);
+  --accent: var(--bg-3);
+  --accent-foreground: var(--fg);
+  --destructive: #dc2626;
+  --border: var(--line-strong);
+  --input: var(--line-strong);
+  --ring: var(--brand);
+  --radius: 0.5rem;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg-0: #eef2f7;
+  --bg-0: #f4f4f5;
   --bg-1: #ffffff;
-  --bg-2: #f1f5f9;
-  --bg-3: #e2e8f0;
-  --line: #e2e8f0;
-  --line-strong: #cbd5e1;
-  --fg: #0f172a;
-  --fg-muted: #475569;
-  --fg-subtle: #64748b;
-  --accent: #2563eb;
-  --accent-fg: #ffffff;
-  --accent-soft: rgb(37 99 235 / 0.1);
+  --bg-2: #f4f4f5;
+  --bg-3: #e9e9ec;
+  --line: #e7e7ea;
+  --line-strong: #d4d4d8;
+  --fg: #09090b;
+  --fg-muted: #52525b;
+  --fg-subtle: #6b6b74;
+  --brand: #2563eb;
+  --brand-text: #2563eb;
+  --brand-fg: #ffffff;
+  --brand-soft: rgb(37 99 235 / 0.1);
   --run: #16a34a;
   --run-fg: #ffffff;
   --danger: #dc2626;
   --danger-soft: rgb(220 38 38 / 0.08);
   --warn: #b45309;
-  --null: #94a3b8;
-  --num: #0369a1;
-  --str: #0f172a;
+  --null: #a1a1aa;
+  --num: #1d4ed8;
+  --str: #09090b;
   --bool: #7c3aed;
-  --shadow: 0 16px 48px rgb(15 23 42 / 0.18), 0 0 0 1px rgb(15 23 42 / 0.06);
+  --shadow: 0 24px 64px rgb(9 9 11 / 0.16), 0 0 0 1px rgb(9 9 11 / 0.06);
+
+  --popover: #ffffff;
+  --accent: var(--bg-3);
+  --destructive: #dc2626;
 }
 
 @theme inline {
@@ -69,17 +98,48 @@
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);
   --color-fg-subtle: var(--fg-subtle);
-  --color-accent: var(--accent);
-  --color-accent-fg: var(--accent-fg);
-  --color-accent-soft: var(--accent-soft);
+  --color-brand: var(--brand);
+  --color-brand-text: var(--brand-text);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-soft: var(--brand-soft);
   --color-run: var(--run);
   --color-run-fg: var(--run-fg);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-warn: var(--warn);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", Consolas, monospace;
   --shadow-pop: var(--shadow);
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
 }
 
 html,
@@ -104,13 +164,13 @@ textarea,
 
 /* Visible keyboard focus everywhere; never removed without replacement. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 1px;
   border-radius: 4px;
 }
 
 ::selection {
-  background: var(--accent-soft);
+  background: var(--brand-soft);
 }
 
 /* Slim, theme-aware scrollbars. */
@@ -119,7 +179,7 @@ textarea,
   scrollbar-color: var(--line-strong) transparent;
 }
 
-/* Wails: let the custom title area drag the window. */
+/* Wails: let custom chrome drag the window. */
 .drag {
   --wails-draggable: drag;
 }
@@ -150,6 +210,27 @@ textarea,
   animation: pop-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* Search hits in the grid. */
+mark.hit {
+  background: rgb(250 204 21 / 0.28);
+  color: inherit;
+  border-radius: 2px;
+}
+.hit-current {
+  background: rgb(250 204 21 / 0.22) !important;
+  outline: 1px solid rgb(250 204 21 / 0.7);
+  outline-offset: -1px;
+}
+
 /* CodeMirror theming via tokens. */
 .cm-editor {
   height: 100%;
@@ -173,28 +254,19 @@ textarea,
   background: color-mix(in srgb, var(--bg-2) 70%, transparent) !important;
 }
 .cm-cursor {
-  border-left-color: var(--accent) !important;
+  border-left-color: var(--brand-text) !important;
 }
 .cm-selectionBackground,
 .cm-focused .cm-selectionBackground {
-  background: var(--accent-soft) !important;
+  background: var(--brand-soft) !important;
 }
 .cm-tooltip {
-  background: var(--bg-2) !important;
+  background: var(--popover) !important;
   border: 1px solid var(--line-strong) !important;
   border-radius: 6px;
   overflow: hidden;
 }
 .cm-tooltip-autocomplete > ul > li[aria-selected] {
-  background: var(--accent) !important;
-  color: var(--accent-fg) !important;
-}
-
-@keyframes indeterminate {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(300%);
-  }
+  background: var(--brand) !important;
+  color: var(--brand-fg) !important;
 }

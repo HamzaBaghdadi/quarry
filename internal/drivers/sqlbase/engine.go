@@ -121,12 +121,30 @@ func (e *Engine) Browse(ctx context.Context, req driver.BrowseRequest) (*driver.
 	if req.Limit <= 0 {
 		req.Limit = 200
 	}
+	var conds []string
+	if f := strings.TrimSpace(req.Filter); f != "" {
+		conds = append(conds, "("+f+")")
+	}
+	if term := strings.TrimSpace(req.Search); term != "" {
+		var clause string
+		err := e.Scoped(ctx, scope, func(q Querier) error {
+			var err error
+			clause, err = e.searchClause(ctx, q, ref, term)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		if clause != "" {
+			conds = append(conds, clause)
+		}
+	}
 	var b strings.Builder
 	b.WriteString("SELECT * FROM ")
 	b.WriteString(ref)
-	if f := strings.TrimSpace(req.Filter); f != "" {
+	if len(conds) > 0 {
 		b.WriteString(" WHERE ")
-		b.WriteString(f)
+		b.WriteString(strings.Join(conds, " AND "))
 	}
 	ordered := req.OrderBy != ""
 	if ordered {

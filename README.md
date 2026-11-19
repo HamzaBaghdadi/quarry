@@ -24,12 +24,15 @@ pgAdmin is a web server in a box. Compass is an Electron app for one database. D
 - **Explorer** — lazy-loaded tree of databases → schemas → tables / collections / keys, with instant filtering.
 - **Query editor** — CodeMirror with per-dialect SQL highlighting and autocomplete, mongosh-style queries for MongoDB, redis-cli commands for Redis. `Ctrl/⌘ + Enter` runs the selection or the whole buffer; long queries can be cancelled.
 - **Data grid** — virtualized (scrolls 100k cells smoothly), resizable columns, server-side sort, `WHERE` / Mongo filter bar, pagination, keyboard navigation, cell inspector with pretty JSON, copy cell/row.
+- **Find anything** — `Ctrl/⌘ + F` highlights matches in the loaded rows and steps through them; one more click (or `Ctrl/⌘ + Enter`) searches **every row of the table** in the database, across all columns.
 - **Edit any cell** — double-click, press Enter/F2 or just start typing. Add rows, mark rows for deletion with `Del`, set NULL, edit long text or JSON in the side panel. Changes are staged (amber = edited, red = deleted, green = new) and written together with `Ctrl/⌘ + S` inside one transaction; if any row changed underneath you, nothing is saved. Works for SQL tables with a primary key, MongoDB documents (types such as ObjectId and dates are preserved) and Redis strings, hashes, lists, sets and sorted sets.
 - **Backup & restore** — built in, no `pg_dump` or `mongodump` needed. PostgreSQL, MySQL/MariaDB/TiDB and SQLite back up to a portable `.sql` script (schema, rows, keys, indexes, views, sequences, enums) read from a consistent snapshot; MongoDB to an Extended-JSON archive with indexes; Redis/Valkey via `DUMP`/`RESTORE` with TTLs. Live progress, cancellable, and partial files are never left behind.
 - **Export** — CSV or JSON via native save dialog.
 - **Safe by default** — passwords live in the OS keychain (Windows Credential Manager, macOS Keychain, Secret Service). Mark a connection *read-only* to block writes on production.
 - **Command palette** — `Ctrl/⌘ + K` to jump to any connection, table or action.
-- **Dark & light themes**, fully keyboard-operable, visible focus everywhere.
+- **Auto-update** — Quarry checks GitHub Releases in the background, shows release notes, verifies the download's SHA-256 and restarts into the new version.
+- **Native-feeling chrome** — custom title bar with breadcrumbs and search on Windows & Linux; macOS keeps its traffic lights. Right-click menus in the grid.
+- **Easy on the eyes** — near-black theme (plus a light one) built with [shadcn/ui](https://ui.shadcn.com), fully keyboard-operable, visible focus everywhere.
 
 ## Supported engines
 
@@ -50,7 +53,17 @@ Every engine accepts either individual fields or a full connection URL.
 
 ## Install
 
-Grab a build for Windows, macOS or Linux from [Releases](https://github.com/HamzaBaghdadi/quarry/releases), or build from source:
+Download the latest build from **[Releases](https://github.com/HamzaBaghdadi/quarry/releases/latest)**:
+
+| Platform | File |
+| --- | --- |
+| Windows | `quarry-windows-amd64-installer.exe` (or the portable `quarry-windows-amd64.exe`) |
+| macOS (Apple Silicon & Intel) | `Quarry-macos-universal.zip` — not notarized yet, so run `xattr -cr Quarry.app` once after unzipping |
+| Linux (x86-64) | `quarry-linux-amd64.tar.gz` — needs GTK 3 and WebKitGTK 4.0 |
+
+After that, Quarry keeps itself up to date.
+
+### Build from source
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
@@ -116,6 +129,7 @@ Dark-first developer-tool aesthetic (OLED dark + Swiss minimalism): slate surfac
 | Action | Shortcut |
 | --- | --- |
 | Run query / selection | `Ctrl/⌘ Enter` |
+| Find in results | `Ctrl/⌘ F` (`Enter` / `Shift Enter` to step, `Ctrl/⌘ Enter` for all rows) |
 | Command palette | `Ctrl/⌘ K` |
 | New query tab | `Ctrl/⌘ T` |
 | Close tab | `Ctrl/⌘ W` |

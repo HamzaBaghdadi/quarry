@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  WAILS_VERSION: v2.17.1
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -28,13 +31,28 @@ jobs:
         include:
           - os: windows-latest
             platform: windows/amd64
+            target: windows
           - os: macos-latest
             platform: darwin/universal
+            target: macos
           - os: ubuntu-22.04
             platform: linux/amd64
+            target: linux
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF_NAME#v}"; else V="0.0.0-dev.${GITHUB_SHA::7}"; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          # Stamp the version into Windows file info and the macOS Info.plist.
+          sed -i.bak -E "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"${V%%-*}\"/" wails.json && rm wails.json.bak
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -46,17 +64,85 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
+
       - name: Linux dependencies
-        if: runner.os == 'Linux'
+        if: matrix.target == 'linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
-      - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
-      - run: wails build -platform ${{ matrix.platform }} -clean
+
+      - name: NSIS (Windows installer)
+        if: matrix.target == 'windows'
+        run: choco install nsis -y --no-progress
+
+      - run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Build
+        run: |
+          EXTRA=""
+          if [[ "${{ matrix.target }}" == "windows" ]]; then EXTRA="-nsis"; fi
+          wails build -clean -platform ${{ matrix.platform }} $EXTRA -ldflags "-X main.version=${{ steps.v.outputs.version }}"
+          ls -la build/bin
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          case "${{ matrix.target }}" in
+            windows)
+              cp build/bin/quarry.exe dist/quarry-windows-amd64.exe
+              cp build/bin/*installer*.exe dist/quarry-windows-amd64-installer.exe
+              ;;
+            macos)
+              APP=$(ls -d build/bin/*.app | head -1)
+              # Ad-hoc sign so Apple Silicon will run the universal binary.
+              codesign --force --deep --sign - "$APP"
+              ditto -c -k --keepParent "$APP" dist/Quarry-macos-universal.zip
+              BIN=$(ls "$APP"/Contents/MacOS/ | head -1)
+              cp "$APP/Contents/MacOS/$BIN" dist/quarry-darwin-universal
+              ;;
+            linux)
+              cp build/bin/quarry dist/quarry-linux-amd64
+              mkdir -p pkg/quarry
+              cp build/bin/quarry pkg/quarry/
+              cp build/appicon.png pkg/quarry/quarry.png
+              cp build/linux/quarry.desktop pkg/quarry/
+              tar -C pkg -czf dist/quarry-linux-amd64.tar.gz quarry
+              ;;
+          esac
+          ls -la dist
+
       - uses: actions/upload-artifact@v4
         with:
-          name: quarry-${{ runner.os }}
-          path: build/bin/*
-      - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+          name: quarry-${{ matrix.target }}
+          path: dist/*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          files: build/bin/*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cat checksums.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## Download
+
+            | Platform | File |
+            | --- | --- |
+            | Windows (installer) | `quarry-windows-amd64-installer.exe` |
+            | Windows (portable) | `quarry-windows-amd64.exe` |
+            | macOS (Apple Silicon & Intel) | `Quarry-macos-universal.zip` |
+            | Linux (x86-64) | `quarry-linux-amd64.tar.gz` |
+
+            Quarry updates itself: when a new version is published you'll see **Update** in the title bar.
+
+            **macOS:** the app isn't notarized yet. After unzipping, run `xattr -cr Quarry.app` once (or right-click → Open) before first launch.
+            **Linux:** needs GTK 3 and WebKitGTK 4.0 (`libwebkit2gtk-4.0-37`).

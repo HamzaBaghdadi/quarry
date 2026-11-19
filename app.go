@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -19,6 +20,7 @@ import (
 	"github.com/HamzaBaghdadi/quarry/internal/guard"
 	"github.com/HamzaBaghdadi/quarry/internal/session"
 	"github.com/HamzaBaghdadi/quarry/internal/store"
+	"github.com/HamzaBaghdadi/quarry/internal/updater"
 )
 
 // App is the facade the frontend talks to. Every exported method becomes a
@@ -28,6 +30,9 @@ type App struct {
 	ctx      context.Context
 	store    *store.Store
 	sessions *session.Manager
+
+	mu      sync.Mutex
+	pending *updater.Release
 }
 
 func NewApp(s *store.Store) *App {
@@ -411,4 +416,52 @@ func (a *App) Export(format string, res driver.Result, suggestedName string) (st
 		enc.SetIndent("", "  ")
 		return path, enc.Encode(objs)
 	}
+}
+
+// --- Updates -------------------------------------------------------------
+
+// CheckForUpdate returns the newer release, or nil if Quarry is current.
+func (a *App) CheckForUpdate() (*updater.Release, error) {
+	ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
+	defer cancel()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	rel, err := updater.Check(ctx, version)
+	if err != nil {
+		return nil, err
+	}
+	a.pending = rel
+	return rel, nil
+}
+
+// InstallUpdate downloads and installs the release found by CheckForUpdate,
+// emitting "update:progress" events. Returns "restart" when the app should
+// relaunch itself, or "installer" when an installer took over.
+func (a *App) InstallUpdate() (string, error) {
+	a.mu.Lock()
+	rel := a.pending
+	a.mu.Unlock()
+	if rel == nil {
+		return "", errors.New("no update to install — check again")
+	}
+	launched, err := updater.Apply(a.ctx, rel, func(done, total int64) {
+		runtime.EventsEmit(a.ctx, "update:progress", map[string]int64{"done": done, "total": total})
+	})
+	if err != nil {
+		return "", err
+	}
+	if launched {
+		runtime.Quit(a.ctx)
+		return "installer", nil
+	}
+	return "restart", nil
+}
+
+// RestartApp relaunches Quarry (after an update).
+func (a *App) RestartApp() error {
+	if err := updater.Restart(); err != nil {
+		return err
+	}
+	runtime.Quit(a.ctx)
+	return nil
 }

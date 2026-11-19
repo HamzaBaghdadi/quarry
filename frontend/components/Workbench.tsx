@@ -30,7 +30,13 @@ import { Explorer } from "./Explorer";
 import { QueryTab } from "./QueryTab";
 import { Split } from "./Split";
 import { TableTab } from "./TableTab";
-import { Button, EngineBadge, IconButton, Kbd, Spinner, mod } from "./ui";
+import { Button, ConfirmHost, EngineBadge, IconButton, Kbd, Spinner, Tip, confirmDialog, mod } from "./common";
+import { SettingsMenu } from "./SettingsMenu";
+import { TitleBar } from "./TitleBar";
+import { UpdateDialog } from "./UpdateDialog";
+import { startUpdateChecks } from "@/lib/updater";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Workbench() {
   const init = useStore((s) => s.init);
@@ -69,24 +75,31 @@ export default function Workbench() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => startUpdateChecks(), []);
+
   return (
+    <TooltipProvider delayDuration={350} skipDelayDuration={150}>
     <div className="flex h-screen flex-col bg-bg-0 text-fg">
+      <TitleBar />
       <div className="flex min-h-0 flex-1">
         <Rail />
         {ready ? (
           <Split direction="horizontal" initial={272} min={200} max={520} storageKey="sidebar" className="min-w-0 flex-1" first={<Sidebar />} second={<Main />} />
         ) : (
           <div className="flex flex-1 items-center justify-center">
-            <Spinner className="text-accent" />
+            <Spinner className="text-brand-text" />
           </div>
         )}
       </div>
       <StatusBar />
+      <ConfirmHost />
       <ConnectionDialog />
       <BackupDialog />
       <CommandPalette />
-      <Toaster theme={theme} position="bottom-right" toastOptions={{ className: "!bg-bg-2 !border-line-strong !text-fg !font-sans" }} />
+      <UpdateDialog />
+      <Toaster theme={theme} position="bottom-right" toastOptions={{ className: "!bg-popover !border-line-strong !text-fg !font-sans !shadow-pop" }} />
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -96,48 +109,37 @@ function Rail() {
   const connections = useStore((s) => s.connections);
   const activeId = useStore((s) => s.activeId);
   const connecting = useStore((s) => s.connecting);
-  const { connect, openDialog, setPalette, toggleTheme } = useStore.getState();
-  const theme = useStore((s) => s.theme);
+  const { connect, openDialog } = useStore.getState();
 
   return (
-    <nav aria-label="Connections" className="drag flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-line bg-bg-0 py-2.5">
-      <div className="mb-1.5 flex size-8 items-center justify-center" title="Quarry">
-        <Logo />
-      </div>
-      <div className="no-drag flex min-h-0 flex-1 flex-col items-center gap-1.5 overflow-y-auto px-1">
+    <nav aria-label="Connections" className="flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-line bg-bg-0 py-2.5">
+      <div className="flex min-h-0 flex-1 flex-col items-center gap-1.5 overflow-y-auto px-1">
         {connections.map((c) => (
+          <Tip key={c.id} side="right" label={<span>{c.name}{c.connected && <span className="ml-1.5 text-run">● connected</span>}</span>}>
           <button
-            key={c.id}
             onClick={() => connect(c.id)}
             aria-label={`${c.name}${c.connected ? " (connected)" : ""}`}
             aria-current={activeId === c.id ? "true" : undefined}
-            title={c.name}
             className={clsx(
               "relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-[background-color,box-shadow] duration-150",
               activeId === c.id ? "bg-bg-3 shadow-[inset_0_0_0_1px_var(--line-strong)]" : "hover:bg-bg-2",
             )}
           >
-            {activeId === c.id && <span aria-hidden className="absolute -left-1 h-4 w-[3px] rounded-r bg-accent" />}
+            {activeId === c.id && <span aria-hidden className="absolute -left-1 h-4 w-[3px] rounded-r bg-brand" />}
             <EngineBadge driver={c.driver} color={c.color} size={26} />
             {connecting === c.id ? (
-              <Spinner className="absolute -bottom-0.5 -right-0.5 size-2.5 text-accent" />
+              <Spinner className="absolute -bottom-0.5 -right-0.5 size-2.5 text-brand-text" />
             ) : (
               c.connected && <span aria-hidden className="absolute bottom-0.5 right-0.5 size-2 rounded-full border-2 border-bg-0 bg-run" />
             )}
           </button>
+          </Tip>
         ))}
         <IconButton label={`New connection (${mod()}+N)`} className="size-9 rounded-lg border border-dashed border-line-strong" onClick={() => openDialog()}>
           <Plus className="size-4" />
         </IconButton>
       </div>
-      <div className="no-drag flex flex-col items-center gap-1">
-        <IconButton label={`Command palette (${mod()}+K)`} className="size-9" onClick={() => setPalette(true)}>
-          <Command className="size-[18px]" />
-        </IconButton>
-        <IconButton label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} className="size-9" onClick={toggleTheme}>
-          {theme === "dark" ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
-        </IconButton>
-      </div>
+      <SettingsMenu />
     </nav>
   );
 }
@@ -205,7 +207,14 @@ function Sidebar() {
           label="Delete connection"
           className="hover:!text-danger"
           onClick={() => {
-            if (confirm(`Delete “${conn.name}”? Its saved password is removed too.`)) void removeConnection(activeId);
+            void confirmDialog({
+              title: `Delete “${conn.name}”?`,
+              description: "The saved connection and its stored password are removed. Your database is not touched.",
+              confirmLabel: "Delete",
+              destructive: true,
+            }).then((ok) => {
+              if (ok) void removeConnection(activeId);
+            });
           }}
         >
           <Trash className="size-3.5" />
@@ -242,7 +251,7 @@ function SavedConnections() {
                 <span className="block truncate text-[13px] font-medium">{c.name}</span>
                 <span className="block truncate text-[11px] text-fg-subtle">{drivers.find((d) => d.id === c.driver)?.name}</span>
               </span>
-              {connecting === c.id && <Spinner className="text-accent" />}
+              {connecting === c.id && <Spinner className="text-brand-text" />}
             </button>
             <IconButton label={`Edit ${c.name}`} className="absolute right-1.5 top-1/2 hidden size-6 -translate-y-1/2 group-hover:inline-flex group-focus-within:inline-flex" onClick={() => openDialog(c)}>
               <PencilSimple className="size-3.5" />
@@ -303,7 +312,6 @@ function TabBar() {
             onClick={() => setActiveTab(t.id)}
             onMouseDown={(e) => e.button === 1 && (e.preventDefault(), closeTab(t.id))}
             onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setActiveTab(t.id)}
-            title={`${conn?.name ?? ""} › ${t.path?.join(" › ") ?? t.title}`}
             className={clsx(
               "no-drag group relative flex h-[34px] min-w-0 max-w-[220px] shrink-0 cursor-pointer items-center gap-2 rounded-t-md pl-2.5 pr-1 text-[12.5px] transition-colors duration-100",
               active ? "bg-bg-1 text-fg shadow-[inset_0_1px_0_var(--line-strong),inset_1px_0_0_var(--line),inset_-1px_0_0_var(--line)]" : "text-fg-muted hover:bg-bg-2 hover:text-fg",
@@ -315,7 +323,6 @@ function TabBar() {
             <span className="truncate">{t.title}</span>
             <button
               aria-label={`Close ${t.title}`}
-              title={`Close (${mod()}+W)`}
               onClick={(e) => {
                 e.stopPropagation();
                 closeTab(t.id);
@@ -370,7 +377,7 @@ function Welcome() {
                       {c.config.file || (c.config.uri ? "connection URL" : `${c.config.host}:${c.config.port}`)}
                     </span>
                   </span>
-                  {connecting === c.id ? <Spinner className="text-accent" /> : <Lightning aria-hidden className="size-4 text-fg-subtle" />}
+                  {connecting === c.id ? <Spinner className="text-brand-text" /> : <Lightning aria-hidden className="size-4 text-fg-subtle" />}
                 </button>
               ))}
             </div>
@@ -457,7 +464,7 @@ function InspectorBody() {
         </IconButton>
       </header>
       {onSave ? (
-        <textarea
+        <Textarea
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);
@@ -469,7 +476,7 @@ function InspectorBody() {
           placeholder={value === null ? "NULL" : ""}
           aria-label={`Edit ${inspected.column}`}
           spellCheck={false}
-          className="min-h-0 flex-1 resize-none bg-bg-0 p-3 font-mono text-[12.5px] leading-relaxed text-fg outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          className="min-h-0 flex-1 resize-none rounded-none border-0 bg-bg-0 p-3 font-mono text-[12.5px] leading-relaxed text-fg shadow-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand dark:bg-bg-0"
         />
       ) : (
         <pre className="selectable min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all p-3 font-mono text-[12.5px] leading-relaxed text-fg">
@@ -488,7 +495,7 @@ function InspectorBody() {
             <Button size="sm" variant="ghost" onClick={() => apply(null)}>
               Set NULL
             </Button>
-            <Button size="sm" variant="primary" disabled={!dirty} onClick={() => apply(draft)} title={`Apply (${mod()}+Enter)`}>
+            <Button size="sm" variant="primary" disabled={!dirty} onClick={() => apply(draft)}>
               Apply
             </Button>
           </div>

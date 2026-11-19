@@ -3,10 +3,10 @@
 import { Command } from "cmdk";
 import { CloudArrowDown, CloudArrowUp, Code, Moon, Plug, Plus, Table, Lightning } from "@phosphor-icons/react";
 import { useStore } from "@/lib/store";
-import { EngineBadge } from "./ui";
+import { EngineBadge } from "./common";
 
 const item =
-  "flex h-9 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg data-[selected=true]:bg-accent data-[selected=true]:text-accent-fg";
+  "flex h-9 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg data-[selected=true]:bg-brand data-[selected=true]:text-brand-fg";
 
 export function CommandPalette() {
   const open = useStore((s) => s.palette);

@@ -6,7 +6,8 @@ import { CheckCircle, CloudArrowDown, CloudArrowUp, File, Warning, WarningOctago
 import { toast } from "sonner";
 import { api, newRunId, onProgress, type BackupReport } from "@/lib/api";
 import { treeKey, useStore } from "@/lib/store";
-import { Button, EngineBadge, IconButton, Label, Select, Spinner } from "./ui";
+import { Button, EngineBadge, IconButton, Label, Select, Spinner } from "./common";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 const fmtBytes = (n: number) =>
   n < 1024 ? `${n} B` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} KB` : n < 1 << 30 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${(n / (1 << 30)).toFixed(2)} GB`;
@@ -50,11 +51,6 @@ function Body() {
     [runId],
   );
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !running && close();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [close, running]);
 
   const isSqlite = conn?.driver === "sqlite";
   const format = drv?.family === "sql" ? "SQL script (.sql)" : "Quarry archive (.ndjson)";
@@ -92,13 +88,18 @@ function Body() {
   const pct = phase.name === "running" && phase.total > 0 ? Math.min(100, (phase.done / phase.total) * 100) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && !running && close()}>
-      <div role="dialog" aria-modal="true" aria-labelledby="bk-title" className="animate-pop w-full max-w-[520px] overflow-hidden rounded-xl border border-line-strong bg-bg-1 shadow-pop">
+    <Dialog open onOpenChange={(o) => !o && !running && close()}>
+      <DialogContent
+        showCloseButton={false}
+        aria-describedby={undefined}
+        onInteractOutside={(e) => running && e.preventDefault()}
+        className="w-full max-w-[520px] gap-0 overflow-hidden rounded-xl border-line-strong bg-bg-1 p-0 shadow-pop sm:max-w-[520px]"
+      >
         <header className="flex h-12 items-center gap-2.5 border-b border-line px-4">
-          {restore ? <CloudArrowUp aria-hidden className="size-5 text-accent" /> : <CloudArrowDown aria-hidden className="size-5 text-accent" />}
-          <h2 id="bk-title" className="text-[14px] font-semibold">
+          {restore ? <CloudArrowUp aria-hidden className="size-5 text-brand-text" /> : <CloudArrowDown aria-hidden className="size-5 text-brand-text" />}
+          <DialogTitle className="text-[14px] font-semibold">
             {restore ? "Restore backup" : "Back up database"}
-          </h2>
+          </DialogTitle>
           <IconButton label="Close" className="ml-auto" onClick={close} disabled={running}>
             <X className="size-4" />
           </IconButton>
@@ -118,13 +119,13 @@ function Body() {
           {!isSqlite && scopes.length > 0 && (
             <div>
               <Label htmlFor="bk-scope">{restore ? "Restore into database" : "Database to back up"}</Label>
-              <Select id="bk-scope" value={scope} onChange={(e) => setScope(e.target.value)} disabled={running || phase.name === "done"}>
-                {scopes.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
+              <Select
+                id="bk-scope"
+                value={scope}
+                onChange={setScope}
+                disabled={running || phase.name === "done"}
+                options={scopes.map((s) => ({ value: s, label: s }))}
+              />
             </div>
           )}
 
@@ -135,7 +136,7 @@ function Body() {
                 <div className="flex gap-2">
                   <div className={clsx("flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-line bg-bg-0 px-2.5 font-mono text-[12px]", !file && "text-fg-subtle")}>
                     <File aria-hidden className="size-3.5 shrink-0" />
-                    <span className="truncate" title={file}>
+                    <span className="truncate">
                       {file || "No file chosen"}
                     </span>
                   </div>
@@ -174,7 +175,7 @@ function Body() {
           {phase.name === "running" && (
             <div aria-live="polite" className="space-y-2">
               <div className="flex items-center gap-2 text-[12.5px]">
-                <Spinner className="text-accent" />
+                <Spinner className="text-brand-text" />
                 <span className="min-w-0 flex-1 truncate">{phase.message}</span>
                 <span className="font-mono text-[11.5px] text-fg-subtle">
                   {fmtBytes(phase.done)}
@@ -183,7 +184,7 @@ function Body() {
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg-3" role="progressbar" aria-valuenow={pct ?? undefined} aria-valuemin={0} aria-valuemax={100}>
                 <div
-                  className={clsx("h-full rounded-full bg-accent transition-[width] duration-200", pct === null && "w-1/3 animate-[indeterminate_1.2s_ease-in-out_infinite]")}
+                  className={clsx("h-full rounded-full bg-brand transition-[width] duration-200", pct === null && "w-1/3 animate-[indeterminate_1.2s_ease-in-out_infinite]")}
                   style={pct !== null ? { width: `${pct}%` } : undefined}
                 />
               </div>
@@ -246,7 +247,7 @@ function Body() {
             </>
           )}
         </footer>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

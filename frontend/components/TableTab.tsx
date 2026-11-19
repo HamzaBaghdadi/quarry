@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowClockwise, ArrowCounterClockwise, CaretLeft, CaretRight, Code, FloppyDisk, Funnel, LockSimple, Plus, X } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, CaretLeft, CaretRight, Code, FloppyDisk, Funnel, LockSimple, MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { api, newRunId, type Cell, type ChangeSet, type Result } from "@/lib/api";
 import { useDriver, useStore, type Tab } from "@/lib/store";
 import type { GridEdits } from "./DataGrid";
 import { ResultPanel } from "./ResultPanel";
-import { Button, IconButton, Kbd, Select, Spinner, mod } from "./ui";
+import { Button, IconButton, Input, Kbd, Select, Spinner, Tip, confirmDialog, mod } from "./common";
 
 const PAGE_SIZES = [100, 200, 500, 1000];
 
@@ -38,6 +38,7 @@ export function TableTab({ tab }: { tab: Tab }) {
   const [offset, setOffset] = useState(0);
   const [filterDraft, setFilterDraft] = useState("");
   const [filter, setFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [sort, setSort] = useState<{ col: string; desc: boolean } | undefined>();
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +60,17 @@ export function TableTab({ tab }: { tab: Tab }) {
   };
 
   /** Run fn, asking first if it would throw away unsaved edits. */
-  const guard = (fn: () => void) => {
-    if (pending && !confirm(`Discard ${pending} unsaved change${pending === 1 ? "" : "s"}?`)) return;
+  const guard = async (fn: () => void) => {
+    if (
+      pending &&
+      !(await confirmDialog({
+        title: `Discard ${pending} unsaved change${pending === 1 ? "" : "s"}?`,
+        description: "Your edits to this table haven't been saved yet.",
+        confirmLabel: "Discard",
+        destructive: true,
+      }))
+    )
+      return;
     clearPending();
     fn();
   };
@@ -72,7 +82,7 @@ export function TableTab({ tab }: { tab: Tab }) {
     try {
       const r = await api.browse(
         tab.connId,
-        { path: tab.path ?? [], limit, offset, filter, orderBy: sort?.col ?? "", desc: !!sort?.desc },
+        { path: tab.path ?? [], limit, offset, filter, search, orderBy: sort?.col ?? "", desc: !!sort?.desc },
         runId.current,
       );
       setResult(r);
@@ -83,7 +93,7 @@ export function TableTab({ tab }: { tab: Tab }) {
     }
     // reloadTick forces a reload with identical params.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab.connId, tab.path, limit, offset, filter, sort, reloadTick]);
+  }, [tab.connId, tab.path, limit, offset, filter, search, sort, reloadTick]);
 
   useEffect(() => {
     void load();
@@ -188,7 +198,7 @@ export function TableTab({ tab }: { tab: Tab }) {
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-bg-1 px-2">
         {filterLabel ? (
           <form
-            className="flex min-w-0 flex-1 items-center gap-0 rounded-md border border-line bg-bg-0 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent-soft"
+            className="flex min-w-0 flex-1 items-center gap-0 rounded-md border border-line bg-bg-0 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft"
             onSubmit={(e) => {
               e.preventDefault();
               guard(() => {
@@ -197,16 +207,16 @@ export function TableTab({ tab }: { tab: Tab }) {
               });
             }}
           >
-            <span className="flex h-7 items-center gap-1 border-r border-line px-2 font-mono text-[11px] font-semibold text-accent">
+            <span className="flex h-7 items-center gap-1 border-r border-line px-2 font-mono text-[11px] font-semibold text-brand-text">
               <Funnel aria-hidden className="size-3" /> {filterLabel}
             </span>
-            <input
+            <Input
               value={filterDraft}
               onChange={(e) => setFilterDraft(e.target.value)}
               placeholder={filterPlaceholder}
               aria-label={`${filterLabel} filter, press Enter to apply`}
               spellCheck={false}
-              className="h-7 min-w-0 flex-1 bg-transparent px-2 font-mono text-[12px] text-fg placeholder:text-fg-subtle focus:outline-none"
+              className="h-7 min-w-0 flex-1 rounded-none border-0 bg-transparent px-2 font-mono text-[12px] focus-visible:ring-0 dark:bg-transparent"
             />
             {filter && (
               <IconButton
@@ -229,15 +239,28 @@ export function TableTab({ tab }: { tab: Tab }) {
           <div className="flex-1 truncate font-mono text-[12px] text-fg-muted">{tab.path?.join(" › ")}</div>
         )}
 
+        {search && (
+          <span className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-brand/40 bg-brand-soft pl-2 pr-0.5 text-[12px] text-fg">
+            <MagnifyingGlass aria-hidden className="size-3.5 text-brand-text" />
+            <span className="max-w-40 truncate">
+              All rows matching <strong className="font-semibold">“{search}”</strong>
+            </span>
+            <IconButton label="Clear search" className="size-6" onClick={() => guard(() => { setOffset(0); setSearch(""); })}>
+              <X className="size-3" />
+            </IconButton>
+          </span>
+        )}
         {editable ? (
-          <Button size="sm" variant="ghost" onClick={() => setAdded((a) => [...a, {}])} title="Add a row">
-            <Plus aria-hidden className="size-3.5" /> Row
+          <Button size="sm" variant="ghost" onClick={() => setAdded((a) => [...a, {}])}>
+            <Plus aria-hidden className="size-3.5" /> Add row
           </Button>
         ) : (
           result?.editBlocked && (
-            <span className="flex shrink-0 items-center gap-1 text-[11px] text-fg-subtle" title={result.editBlocked}>
+            <Tip label={result.editBlocked}>
+            <span tabIndex={0} className="flex shrink-0 items-center gap-1 text-[11px] text-fg-subtle">
               <LockSimple aria-hidden className="size-3" /> Read-only
             </span>
+            </Tip>
           )
         )}
         <IconButton label="Refresh" onClick={() => guard(() => setReloadTick((n) => n + 1))}>
@@ -283,6 +306,13 @@ export function TableTab({ tab }: { tab: Tab }) {
         sort={family === "keyvalue" ? undefined : sort}
         onSort={family === "keyvalue" ? undefined : onSort}
         edits={edits}
+        active={active}
+        onSearchAll={(term) =>
+          guard(() => {
+            setOffset(0);
+            setSearch(term);
+          })
+        }
         footerExtra={
           <div className="mr-2 flex items-center gap-1">
             {editable && (
@@ -299,22 +329,18 @@ export function TableTab({ tab }: { tab: Tab }) {
             </IconButton>
             <Select
               aria-label="Rows per page"
-              value={limit}
-              onChange={(e) => {
-                const n = Number(e.target.value);
+              size="sm"
+              value={String(limit)}
+              onChange={(v) => {
+                const n = Number(v);
                 guard(() => {
                   setOffset(0);
                   setLimit(n);
                 });
               }}
-              className="!h-6 !w-auto !px-1 text-[11px]"
-            >
-              {PAGE_SIZES.map((n) => (
-                <option key={n} value={n}>
-                  {n} / page
-                </option>
-              ))}
-            </Select>
+              className="!h-6 w-auto text-[11.5px]"
+              options={PAGE_SIZES.map((n) => ({ value: String(n), label: `${n} / page` }))}
+            />
           </div>
         }
       />
