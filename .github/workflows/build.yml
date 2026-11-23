@@ -122,6 +122,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags and history for the release notes
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -131,21 +134,11 @@ jobs:
           cd dist
           sha256sum * > checksums.txt
           cat checksums.txt
+      - name: Release notes
+        run: |
+          bash .github/release-notes.sh "$GITHUB_REF_NAME" > notes.md
+          cat notes.md
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
-          body: |
-            ## Download
-
-            | Platform | File |
-            | --- | --- |
-            | Windows (installer) | `quarry-windows-amd64-installer.exe` |
-            | Windows (portable) | `quarry-windows-amd64.exe` |
-            | macOS (Apple Silicon & Intel) | `Quarry-macos-universal.zip` |
-            | Linux (x86-64) | `quarry-linux-amd64.tar.gz` |
-
-            Quarry updates itself: when a new version is published you'll see **Update** in the title bar.
-
-            **macOS:** the app isn't notarized yet. After unzipping, run `xattr -cr Quarry.app` once (or right-click → Open) before first launch.
-            **Linux:** needs GTK 3 and WebKitGTK 4.0 (`libwebkit2gtk-4.0-37`).
+          body_path: notes.md

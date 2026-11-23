@@ -64,7 +64,9 @@ function Notes({ text }: { text: string }) {
         );
       continue;
     }
-    if (skipping || !t) continue;
+    // The changelog link is useful even when it sits inside a skipped section.
+    if (skipping && !t.startsWith("**Full Changelog**")) continue;
+    if (!t) continue;
     if (t.startsWith("|")) {
       const rows: string[][] = [];
       for (; i < lines.length && lines[i].trim().startsWith("|"); i++) {
@@ -106,6 +108,7 @@ function Notes({ text }: { text: string }) {
       </p>,
     );
   }
+  if (!blocks.length) return <p className="text-[13px] text-fg-subtle">No notes were published for this version — see the release page for details.</p>;
   return <div className="selectable space-y-1.5 text-[13px] leading-relaxed text-fg-muted">{blocks}</div>;
 }
 
