@@ -455,15 +455,18 @@ func (a *App) InstallUpdate() (string, error) {
 	if rel == nil {
 		return "", errors.New("no update to install — check again")
 	}
-	launched, err := updater.Apply(a.ctx, rel, func(done, total int64) {
+	mode, err := updater.Apply(a.ctx, rel, func(done, total int64) {
 		runtime.EventsEmit(a.ctx, "update:progress", map[string]int64{"done": done, "total": total})
 	})
 	if err != nil {
 		return "", err
 	}
-	if launched {
+	switch mode {
+	case "installer": // Windows installer takes over and reopens Quarry
 		runtime.Quit(a.ctx)
 		return "installer", nil
+	case "package": // Linux software installer opened; the user restarts when done
+		return "package", nil
 	}
 	return "restart", nil
 }

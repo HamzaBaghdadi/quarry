@@ -187,7 +187,7 @@ interface Backend {
   PickBackupFile(id: string): Promise<string>;
   Restore(id: string, scope: string, path: string, runId: string): Promise<BackupReport>;
   CheckForUpdate(): Promise<UpdateInfo | null>;
-  InstallUpdate(): Promise<"restart" | "installer">;
+  InstallUpdate(): Promise<"restart" | "installer" | "package">;
   RestartApp(): Promise<void>;
   DuplicateConnection(id: string): Promise<Profile>;
   CloseWindow(): Promise<void>;
@@ -206,7 +206,7 @@ export interface UpdateInfo {
   url: string;
   publishedAt: string;
   size: number;
-  method?: "replace" | "installer";
+  method?: "replace" | "installer" | "package";
 }
 
 declare global {

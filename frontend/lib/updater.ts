@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { api, isDesktop, type UpdateInfo } from "./api";
 
-type Status = "idle" | "checking" | "downloading" | "ready" | "error";
+type Status = "idle" | "checking" | "downloading" | "ready" | "handoff" | "error";
 
 interface UpdaterState {
   available: UpdateInfo | null;
@@ -50,6 +50,7 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
     try {
       const mode = await api.installUpdate();
       if (mode === "restart") set({ status: "ready" });
+      else if (mode === "package") set({ status: "handoff" });
     } catch (e) {
       set({ status: "error", error: (e as Error).message });
     }

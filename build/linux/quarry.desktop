@@ -1,8 +1,11 @@
 [Desktop Entry]
 Type=Application
 Name=Quarry
+GenericName=Database Client
 Comment=A small, fast client for every database
 Exec=quarry
 Icon=quarry
 Terminal=false
 Categories=Development;Database;
+Keywords=database;sql;postgres;mysql;sqlite;mongodb;redis;
+StartupWMClass=Quarry

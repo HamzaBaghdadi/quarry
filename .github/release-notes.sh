@@ -33,12 +33,14 @@ $bullets
 | Windows (installer) | \`quarry-windows-amd64-installer.exe\` |
 | Windows (portable) | \`quarry-windows-amd64.exe\` |
 | macOS (Apple Silicon & Intel) | \`Quarry-macos-universal.zip\` |
-| Linux (x86-64) | \`quarry-linux-amd64.tar.gz\` |
+| Linux — Ubuntu, Debian, Mint, Pop!_OS | \`quarry-linux-amd64.deb\` (double-click to install) |
+| Linux — Fedora | \`quarry-linux-amd64.rpm\` (double-click to install) |
+| Linux — any distro, no install | \`quarry-linux-amd64.AppImage\` |
 
 Quarry updates itself: when a new version is published you'll see **Update** in the title bar.
 
 **macOS:** the app isn't notarized yet. After unzipping, run \`xattr -cr Quarry.app\` once (or right-click → Open) before first launch.
-**Linux:** needs GTK 3 and WebKitGTK 4.0 (\`libwebkit2gtk-4.0-37\`).
+**Linux:** the .deb and .rpm install everything they need automatically. For the AppImage: right-click → Properties → allow executing as a program, then double-click.
 EOF
 
 if [ -n "$PREV" ]; then

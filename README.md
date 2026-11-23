@@ -61,7 +61,9 @@ Download the latest build from **[Releases](https://github.com/HamzaBaghdadi/qua
 | --- | --- |
 | Windows | `quarry-windows-amd64-installer.exe` (or the portable `quarry-windows-amd64.exe`) |
 | macOS (Apple Silicon & Intel) | `Quarry-macos-universal.zip` — not notarized yet, so run `xattr -cr Quarry.app` once after unzipping |
-| Linux (x86-64) | `quarry-linux-amd64.tar.gz` — needs GTK 3 and WebKitGTK 4.0 |
+| Linux — Ubuntu / Debian / Mint | `quarry-linux-amd64.deb` — double-click; dependencies install automatically |
+| Linux — Fedora | `quarry-linux-amd64.rpm` — double-click; dependencies install automatically |
+| Linux — any distro | `quarry-linux-amd64.AppImage` — no install: allow executing, then double-click |
 
 After that, Quarry keeps itself up to date.
 
@@ -73,7 +75,7 @@ git clone https://github.com/HamzaBaghdadi/quarry && cd quarry
 wails build
 ```
 
-The binary lands in `build/bin/`. Requirements: Go 1.24+, Node 20+, pnpm, and on Linux `libgtk-3-dev libwebkit2gtk-4.0-dev`.
+The binary lands in `build/bin/`. Requirements: Go 1.24+, Node 20+, pnpm, and on Linux `libgtk-3-dev libwebkit2gtk-4.1-dev` (build with `wails build -tags webkit2_41`).
 
 ## Develop
 

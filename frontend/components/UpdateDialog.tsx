@@ -138,6 +138,11 @@ export function UpdateDialog() {
           </div>
         </div>
 
+        {rel?.method === "package" && status !== "error" && status !== "handoff" && (
+          <p className="mx-5 mb-3 rounded-md border border-line bg-bg-0 px-3 py-2 text-[12px] text-fg-muted">
+            Quarry was installed as a system package, so the update opens in your software installer, which may ask for your password.
+          </p>
+        )}
         {rel?.method === "installer" && status !== "error" && (
           <p className="mx-5 mb-3 rounded-md border border-line bg-bg-0 px-3 py-2 text-[12px] text-fg-muted">
             Quarry is installed in a protected folder, so the update runs the installer: Quarry closes, updates and reopens by itself.
@@ -148,7 +153,7 @@ export function UpdateDialog() {
           {rel?.notes ? <Notes text={rel.notes} /> : <p className="text-[13px] text-fg-subtle">No release notes.</p>}
         </div>
 
-        {(busy || status === "ready" || status === "error") && (
+        {(busy || status === "ready" || status === "handoff" || status === "error") && (
           <div className="px-5 pt-4" aria-live="polite">
             {busy && (
               <div className="space-y-2">
@@ -171,6 +176,12 @@ export function UpdateDialog() {
                 <CheckCircle aria-hidden weight="fill" className="size-4 text-run" /> Update installed. Restart to start using it.
               </p>
             )}
+            {status === "handoff" && (
+              <p className="flex items-start gap-2 text-[13px]">
+                <CheckCircle aria-hidden weight="fill" className="mt-0.5 size-4 shrink-0 text-run" />
+                <span>Your software installer opened with the new version. Finish installing there, then restart Quarry.</span>
+              </p>
+            )}
             {status === "error" && (
               <div role="alert" className="flex gap-2 rounded-lg border border-danger/30 bg-danger-soft p-2.5 text-[12.5px]">
                 <WarningOctagon aria-hidden weight="fill" className="mt-0.5 size-4 shrink-0 text-danger" />
@@ -187,7 +198,7 @@ export function UpdateDialog() {
             <ArrowSquareOut aria-hidden className="size-3.5" /> Release page
           </Button>
           <div className="ml-auto flex gap-2">
-            {status === "ready" ? (
+            {status === "ready" || status === "handoff" ? (
               <Button variant="primary" onClick={restart}>
                 Restart now
               </Button>

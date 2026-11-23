@@ -35,7 +35,7 @@ jobs:
           - os: macos-latest
             platform: darwin/universal
             target: macos
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             platform: linux/amd64
             target: linux
     runs-on: ${{ matrix.os }}
@@ -67,7 +67,7 @@ jobs:
 
       - name: Linux dependencies
         if: matrix.target == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev librsvg2-common file desktop-file-utils
 
       - name: NSIS (Windows installer)
         if: matrix.target == 'windows'
@@ -82,6 +82,8 @@ jobs:
           EXTRA=""
           # Per-user installer (no admin prompt) so in-app updates can replace the exe.
           if [[ "${{ matrix.target }}" == "windows" ]]; then EXTRA="-nsis -installscope user"; fi
+          # WebKitGTK 4.1: what current Ubuntu, Debian and Fedora ship.
+          if [[ "${{ matrix.target }}" == "linux" ]]; then EXTRA="-tags webkit2_41"; fi
           wails build -clean -platform ${{ matrix.platform }} $EXTRA -ldflags "-X main.version=${{ steps.v.outputs.version }}"
           ls -la build/bin
 
@@ -105,9 +107,16 @@ jobs:
               cp build/bin/quarry dist/quarry-linux-amd64
               mkdir -p pkg/quarry
               cp build/bin/quarry pkg/quarry/
-              cp build/appicon.png pkg/quarry/quarry.png
+              cp build/linux/icons/quarry-256.png pkg/quarry/quarry.png
               cp build/linux/quarry.desktop pkg/quarry/
               tar -C pkg -czf dist/quarry-linux-amd64.tar.gz quarry
+              # .deb / .rpm: the package manager installs GTK + WebKitGTK.
+              go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+              export VERSION="${{ steps.v.outputs.version }}"
+              nfpm package --config build/linux/nfpm.yaml --packager deb --target dist/quarry-linux-amd64.deb
+              nfpm package --config build/linux/nfpm.yaml --packager rpm --target dist/quarry-linux-amd64.rpm
+              # AppImage with WebKitGTK bundled: runs without installing anything.
+              bash build/linux/appimage.sh dist/quarry-linux-amd64.AppImage
               ;;
           esac
           ls -la dist

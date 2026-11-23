@@ -74,8 +74,43 @@ func AssetName() string {
 	case "darwin":
 		return "quarry-darwin-universal"
 	default:
+		if os.Getenv("APPIMAGE") != "" {
+			return "quarry-linux-" + runtime.GOARCH + ".AppImage"
+		}
 		return "quarry-linux-" + runtime.GOARCH
 	}
+}
+
+// target is the file an in-place update replaces: the AppImage itself when
+// running from one, otherwise the executable.
+func target() (string, error) {
+	if p := os.Getenv("APPIMAGE"); runtime.GOOS == "linux" && p != "" {
+		return p, nil
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(exe)
+}
+
+// linuxPackage reports which system package (".deb"/".rpm") Quarry was
+// installed from, or "" for a self-managed copy (tarball / AppImage).
+func linuxPackage() string {
+	if runtime.GOOS != "linux" || os.Getenv("APPIMAGE") != "" {
+		return ""
+	}
+	exe, err := target()
+	if err != nil || !strings.HasPrefix(exe, "/usr/") {
+		return ""
+	}
+	if _, err := os.Stat("/usr/bin/dpkg"); err == nil {
+		return ".deb"
+	}
+	if _, err := os.Stat("/usr/bin/rpm"); err == nil {
+		return ".rpm"
+	}
+	return ""
 }
 
 var client = &http.Client{Timeout: 30 * time.Second}
@@ -113,6 +148,7 @@ func Check(ctx context.Context, current string) (*Release, error) {
 	}
 	rel := &Release{Version: latest, Name: gh.Name, Notes: gh.Body, URL: gh.HTMLURL, PublishedAt: gh.PublishedAt}
 	want := AssetName()
+	pkg := linuxPackage()
 	for _, a := range gh.Assets {
 		switch {
 		case a.Name == want:
@@ -121,14 +157,20 @@ func Check(ctx context.Context, current string) (*Release, error) {
 			rel.checksums = a.URL
 		case runtime.GOOS == "windows" && strings.HasSuffix(a.Name, "-installer.exe"):
 			rel.installer, rel.instName, rel.instSize = a.URL, a.Name, a.Size
+		case runtime.GOOS == "linux" && pkg != "" && a.Name == "quarry-linux-"+runtime.GOARCH+pkg:
+			rel.installer, rel.instName, rel.instSize = a.URL, a.Name, a.Size
 		}
 	}
 	if rel.asset == "" {
 		return nil, fmt.Errorf("release %s has no build for %s/%s", latest, runtime.GOOS, runtime.GOARCH)
 	}
 	rel.Method = "replace"
-	if runtime.GOOS == "windows" && rel.installer != "" && !canReplaceSelf() {
+	switch {
+	case runtime.GOOS == "windows" && rel.installer != "" && !canReplaceSelf():
 		rel.Method, rel.Size = "installer", rel.instSize
+	case runtime.GOOS == "linux" && rel.installer != "" && !canReplaceSelf():
+		// Installed from a .deb/.rpm: hand the new package to the system installer.
+		rel.Method, rel.Size = "package", rel.instSize
 	}
 	return rel, nil
 }
@@ -176,56 +218,56 @@ type Progress func(done, total int64)
 // Apply downloads, verifies and installs rel. On success the caller should
 // call Restart. The returned bool reports whether an installer was launched
 // instead (the app should then quit without relaunching).
-func Apply(ctx context.Context, rel *Release, p Progress) (installerLaunched bool, err error) {
-	exe, err := os.Executable()
+func Apply(ctx context.Context, rel *Release, p Progress) (mode string, err error) {
+	exe, err := target()
 	if err != nil {
-		return false, err
-	}
-	if exe, err = filepath.EvalSymlinks(exe); err != nil {
-		return false, err
+		return "", err
 	}
 	sums, err := checksums(ctx, rel.checksums)
 	if err != nil {
-		return false, err
+		return "", err
+	}
+	if rel.Method == "package" {
+		return "package", openPackage(ctx, rel, sums, p)
 	}
 
 	dir := filepath.Dir(exe)
 	tmp, err := os.CreateTemp(dir, ".quarry-update-*")
 	if errors.Is(err, os.ErrPermission) && runtime.GOOS == "windows" && rel.installer != "" {
-		return true, runInstaller(ctx, rel, sums, p)
+		return "installer", runInstaller(ctx, rel, sums, p)
 	}
 	if err != nil {
-		return false, fmt.Errorf("can't write to %s: %w", dir, err)
+		return "", fmt.Errorf("can't write to %s: %w", dir, err)
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
 
 	if err := download(ctx, rel.asset, tmp, sums[rel.assetName], p); err != nil {
 		tmp.Close()
-		return false, err
+		return "", err
 	}
 	if err := tmp.Close(); err != nil {
-		return false, err
+		return "", err
 	}
 	if err := os.Chmod(tmpName, 0o755); err != nil {
-		return false, err
+		return "", err
 	}
 
 	// Swap. Windows can't overwrite a running exe but can rename it.
 	old := exe + ".old"
 	_ = os.Remove(old)
 	if err := os.Rename(exe, old); err != nil {
-		return false, err
+		return "", err
 	}
 	if err := os.Rename(tmpName, exe); err != nil {
 		_ = os.Rename(old, exe) // roll back
-		return false, err
+		return "", err
 	}
 	if runtime.GOOS != "windows" {
 		_ = os.Remove(old)
 	}
 	resign(exe)
-	return false, nil
+	return "replace", nil
 }
 
 // Cleanup removes the previous binary left behind by a Windows update.
@@ -237,7 +279,7 @@ func Cleanup() {
 
 // Restart launches the (new) executable and returns; the caller then quits.
 func Restart() error {
-	exe, err := os.Executable()
+	exe, err := target()
 	if err != nil {
 		return err
 	}
@@ -347,11 +389,8 @@ func resign(exe string) {
 
 // canReplaceSelf reports whether the running executable's folder is writable.
 func canReplaceSelf() bool {
-	exe, err := os.Executable()
+	exe, err := target()
 	if err != nil {
-		return false
-	}
-	if exe, err = filepath.EvalSymlinks(exe); err != nil {
 		return false
 	}
 	f, err := os.CreateTemp(filepath.Dir(exe), ".quarry-write-test-*")
@@ -362,4 +401,30 @@ func canReplaceSelf() bool {
 	f.Close()
 	os.Remove(name)
 	return true
+}
+
+// openPackage downloads the release's .deb/.rpm and opens it with the
+// desktop's software installer, which asks for permission and upgrades the
+// system package. Quarry keeps running; the user restarts it afterwards.
+func openPackage(ctx context.Context, rel *Release, sums map[string]string, p Progress) error {
+	dir, err := os.MkdirTemp("", "quarry-update-")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "quarry-"+rel.Version+filepath.Ext(rel.instName))
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := download(ctx, rel.installer, f, sums[rel.instName], p); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := exec.Command("xdg-open", path).Start(); err != nil {
+		return fmt.Errorf("downloaded %s but couldn't open it (%w) — open it from your file manager", path, err)
+	}
+	return nil
 }
