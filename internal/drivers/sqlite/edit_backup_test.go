@@ -3,6 +3,7 @@ package sqlite
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"context"
 	"path/filepath"
 	"testing"
@@ -129,5 +130,42 @@ func TestSearchAnyColumn(t *testing.T) {
 	r, err := c.Browse(ctx, driver.BrowseRequest{Path: []string{"p"}, Limit: 50, Search: "lin", Filter: "n > 100"})
 	if err != nil || len(r.Rows) != 1 {
 		t.Fatalf("search+filter: %v rows, err %v", len(r.Rows), err)
+	}
+}
+
+func TestStructure(t *testing.T) {
+	ctx := context.Background()
+	c := open(t)
+	mustExec(t, c, "CREATE TABLE parent (id INTEGER PRIMARY KEY, label TEXT NOT NULL DEFAULT 'x')")
+	mustExec(t, c, "CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id), note TEXT UNIQUE)")
+	mustExec(t, c, "CREATE INDEX child_parent ON child(parent_id)")
+	mustExec(t, c, "INSERT INTO child (note) VALUES ('a'), ('b')")
+	st, err := c.(driver.Structurer).Structure(ctx, []string{"child"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Kind != "table" || len(st.Columns) != 3 || !st.Columns[0].PrimaryKey || st.Columns[0].Nullable || !st.Columns[2].Nullable {
+		t.Fatalf("columns = %+v", st.Columns)
+	}
+	if st.RowEstimate != 2 {
+		t.Errorf("rows = %d", st.RowEstimate)
+	}
+	var named, auto bool
+	for _, ix := range st.Indexes {
+		named = named || ix.Name == "child_parent"
+		auto = auto || ix.Kind == "unique index"
+	}
+	if !named || !auto {
+		t.Errorf("indexes = %+v", st.Indexes)
+	}
+	if len(st.Constraints) != 1 || !strings.Contains(st.Constraints[0].Definition, `REFERENCES "parent" (id)`) {
+		t.Errorf("constraints = %+v", st.Constraints)
+	}
+	if !strings.Contains(st.DDL, "CREATE TABLE child") || !strings.Contains(st.DDL, "CREATE INDEX child_parent") {
+		t.Errorf("ddl = %s", st.DDL)
+	}
+	p, err := c.(driver.Structurer).Structure(ctx, []string{"parent"})
+	if err != nil || p.Columns[1].Default != "'x'" || p.Columns[1].Nullable {
+		t.Fatalf("parent = %+v, %v", p.Columns, err)
 	}
 }

@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import { api, type Connection, type DriverInfo, type Profile, type TreeNode } from "./api";
 
-export type TabKind = "query" | "table";
+export type TabKind = "query" | "table" | "roles";
 
 export interface Tab {
   id: string;
@@ -17,6 +17,10 @@ export interface Tab {
   scope: string;
   /** Initial editor text for query tabs. */
   query?: string;
+  /** Roles tab: role to open for editing. */
+  focus?: string;
+  /** Table tabs: show rows or structure. */
+  view?: "data" | "structure";
 }
 
 interface TreeEntry {
@@ -61,8 +65,9 @@ interface State {
   removeConnection(id: string): Promise<void>;
   loadChildren(connId: string, path: string[], force?: boolean): Promise<void>;
   toggle(connId: string, node: TreeNode): void;
-  openTable(connId: string, node: TreeNode): void;
+  openTable(connId: string, node: TreeNode, view?: "data" | "structure"): void;
   newQuery(connId?: string, scope?: string, query?: string): void;
+  openRoles(connId: string, focus?: string): void;
   closeTab(id: string): void;
   setActiveTab(id: string): void;
   updateTab(id: string, patch: Partial<Tab>): void;
@@ -185,13 +190,13 @@ export const useStore = create<State>((set, get) => ({
     if (open) void get().loadChildren(connId, node.path);
   },
 
-  openTable(connId, node) {
+  openTable(connId, node, view) {
     const existing = get().tabs.find((t) => t.kind === "table" && t.connId === connId && t.path?.join("/") === node.path.join("/"));
     if (existing) {
-      set({ activeTab: existing.id });
+      set((s) => ({ activeTab: existing.id, tabs: view ? s.tabs.map((t) => (t.id === existing.id ? { ...t, view } : t)) : s.tabs }));
       return;
     }
-    const tab: Tab = { id: uid(), connId, kind: "table", title: node.name, path: node.path, scope: node.path[0] ?? "" };
+    const tab: Tab = { id: uid(), connId, kind: "table", title: node.name, path: node.path, scope: node.path[0] ?? "", view: view ?? "data" };
     set((s) => ({ tabs: [...s.tabs, tab], activeTab: tab.id }));
   },
 
@@ -213,6 +218,16 @@ export const useStore = create<State>((set, get) => ({
       query: query ?? drv?.example ?? "",
     };
     set((s) => ({ tabs: [...s.tabs, tab], activeTab: tab.id, activeId: id }));
+  },
+
+  openRoles(connId, focus) {
+    const existing = get().tabs.find((t) => t.kind === "roles" && t.connId === connId);
+    if (existing) {
+      set((s) => ({ activeTab: existing.id, tabs: s.tabs.map((t) => (t.id === existing.id ? { ...t, focus } : t)) }));
+      return;
+    }
+    const tab: Tab = { id: uid(), connId, kind: "roles", title: "Roles", scope: "", focus };
+    set((s) => ({ tabs: [...s.tabs, tab], activeTab: tab.id }));
   },
 
   closeTab(id) {

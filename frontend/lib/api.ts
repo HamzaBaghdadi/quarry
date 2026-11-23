@@ -16,7 +16,7 @@ export interface DriverInfo {
   uriPlaceholder: string;
   sslModes: string[] | null;
   example: string;
-  capabilities: ("edit" | "backup")[] | null;
+  capabilities: ("edit" | "backup" | "roles" | "databases" | "structure")[] | null;
 }
 
 export interface ConnConfig {
@@ -46,7 +46,60 @@ export interface Connection extends Profile {
   connected: boolean;
 }
 
-export type NodeKind = "database" | "schema" | "table" | "view" | "collection" | "key" | "group";
+export type NodeKind = "database" | "schema" | "table" | "view" | "collection" | "key" | "group" | "role" | "tablespace";
+
+/** Explorer paths for server-level groups (match driver.PathRoles / PathTablespaces). */
+export const PATH_ROLES = "\u0001roles";
+export const PATH_TABLESPACES = "\u0001tablespaces";
+
+export interface Role {
+  name: string;
+  canLogin: boolean;
+  superuser: boolean;
+  createDb: boolean;
+  createRole: boolean;
+  inherit: boolean;
+  replication: boolean;
+  bypassRls: boolean;
+  connLimit: number;
+  validUntil: string;
+  memberOf: string[];
+  comment: string;
+  builtIn: boolean;
+}
+
+export interface RoleChange {
+  oldName: string;
+  role: Role;
+  setPassword: boolean;
+  password: string;
+}
+
+export interface StructColumn {
+  name: string;
+  type: string;
+  nullable: boolean;
+  default: string;
+  primaryKey: boolean;
+  comment: string;
+}
+
+export interface StructItem {
+  name: string;
+  kind: string;
+  definition: string;
+}
+
+export interface TableStructure {
+  kind: "table" | "view";
+  columns: StructColumn[] | null;
+  indexes: StructItem[] | null;
+  constraints: StructItem[] | null;
+  ddl: string;
+  rowEstimate: number;
+  size: string;
+  comment: string;
+}
 
 export interface TreeNode {
   name: string;
@@ -138,6 +191,12 @@ interface Backend {
   RestartApp(): Promise<void>;
   DuplicateConnection(id: string): Promise<Profile>;
   CloseWindow(): Promise<void>;
+  ListRoles(id: string): Promise<Role[]>;
+  SaveRole(id: string, ch: RoleChange): Promise<void>;
+  DropRole(id: string, name: string): Promise<void>;
+  CreateDatabase(id: string, name: string, owner: string): Promise<void>;
+  DropDatabase(id: string, name: string): Promise<void>;
+  Structure(id: string, path: string[]): Promise<TableStructure>;
 }
 
 export interface UpdateInfo {
@@ -188,6 +247,12 @@ export const api = {
   saveConnection: (p: Profile, keepPassword: boolean) => call("SaveConnection", p, keepPassword),
   deleteConnection: (id: string) => call("DeleteConnection", id),
   duplicateConnection: (id: string) => call("DuplicateConnection", id),
+  listRoles: (id: string) => call("ListRoles", id),
+  saveRole: (id: string, ch: RoleChange) => call("SaveRole", id, ch),
+  dropRole: (id: string, name: string) => call("DropRole", id, name),
+  createDatabase: (id: string, name: string, owner: string) => call("CreateDatabase", id, name, owner),
+  dropDatabase: (id: string, name: string) => call("DropDatabase", id, name),
+  structure: (id: string, path: string[]) => call("Structure", id, path),
   testConnection: (p: Profile, useStored: boolean) => call("TestConnection", p, useStored),
   connect: (id: string) => call("Connect", id),
   disconnect: (id: string) => call("Disconnect", id),

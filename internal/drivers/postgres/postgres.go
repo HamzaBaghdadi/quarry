@@ -27,7 +27,7 @@ func init() {
 		SSLModes:       []string{"prefer", "disable", "require", "verify-ca", "verify-full"},
 		URIPlaceholder: "postgres://user:pass@localhost:5432/db?sslmode=disable",
 		Example:        "SELECT now(), version();",
-		Capabilities:   []string{driver.CapEdit, driver.CapBackup},
+		Capabilities:   []string{driver.CapEdit, driver.CapBackup, driver.CapRoles, driver.CapDatabases, driver.CapStructure},
 	}})
 	driver.Register(&Driver{info: driver.Info{
 		ID: "cockroachdb", Name: "CockroachDB", Family: driver.FamilySQL, Language: "sql",
@@ -35,7 +35,7 @@ func init() {
 		SSLModes:       []string{"disable", "require", "verify-full"},
 		URIPlaceholder: "postgresql://root@localhost:26257/defaultdb?sslmode=disable",
 		Example:        "SHOW DATABASES;",
-		Capabilities:   []string{driver.CapEdit},
+		Capabilities:   []string{driver.CapEdit, driver.CapDatabases, driver.CapStructure},
 	}})
 }
 
@@ -115,20 +115,23 @@ func (dialect) Use(string) string { return "" }
 func (dialect) Paginate(l, o int, ord bool) string { return sqlbase.LimitOffset(l, o, ord) }
 
 func (d dialect) Table(path []string) (string, string) {
-	if len(path) != 3 {
+	if len(path) != 3 || isServerPath(path) {
 		return "", ""
 	}
 	return path[0], d.Quote(path[1]) + "." + d.Quote(path[2])
 }
 
-func (dialect) Children(ctx context.Context, e *sqlbase.Engine, path []string) ([]driver.Node, error) {
+func (d dialect) Children(ctx context.Context, e *sqlbase.Engine, path []string) ([]driver.Node, error) {
+	if isServerPath(path) {
+		return d.serverChildren(ctx, e, path)
+	}
 	switch len(path) {
 	case 0:
 		names, err := sqlbase.Strings(ctx, e.DB, `SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY datname`)
 		if err != nil {
 			return nil, err
 		}
-		return sqlbase.Databases(names), nil
+		return append(sqlbase.Databases(names), serverGroups()...), nil
 	case 1:
 		var out []driver.Node
 		err := e.Scoped(ctx, path[0], func(q sqlbase.Querier) error {

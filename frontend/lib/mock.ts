@@ -1,7 +1,21 @@
 // In-memory demo backend used when the UI runs outside the desktop shell
 // (e.g. `pnpm dev` in a browser). It mimics the Go API closely enough to
 // design and test every screen without a database.
-import type { BackupReport, Cell, ChangeSet, Connection, DriverInfo, Profile, Result, TreeNode } from "./api";
+import type { BackupReport, Cell, ChangeSet, Connection, DriverInfo, Profile, Result, Role, RoleChange, TableStructure, TreeNode } from "./api";
+import { PATH_ROLES, PATH_TABLESPACES } from "./api";
+
+const role = (name: string, o: Partial<Role> = {}): Role => ({
+  name, canLogin: false, superuser: false, createDb: false, createRole: false, inherit: true, replication: false,
+  bypassRls: false, connLimit: -1, validUntil: "", memberOf: [], comment: "", builtIn: name.startsWith("pg_"), ...o,
+});
+const roles: Role[] = [
+  role("admin_app", { canLogin: true, createDb: true, memberOf: ["pg_read_all_data"], comment: "Application admin" }),
+  role("customer_service", { canLogin: true, connLimit: 20 }),
+  role("postgres", { canLogin: true, superuser: true, createDb: true, createRole: true, replication: true, bypassRls: true }),
+  role("readers", { comment: "Read-only group" }),
+  ...["pg_checkpoint", "pg_create_subscription", "pg_database_owner", "pg_maintain", "pg_monitor", "pg_read_all_data", "pg_read_all_settings", "pg_write_all_data"].map((n) => role(n)),
+];
+const databases = ["app", "postgres"];
 
 const all = ["host", "port", "user", "password", "database", "ssl", "uri"] as const;
 const rawDrivers: Omit<DriverInfo, "capabilities">[] = [
@@ -127,7 +141,16 @@ export function createMockBackend() {
         if (!path.length) return ["analytics", "admin"].map((d) => ({ name: d, kind: "database", path: [d], hasChildren: true, browsable: false }));
         return ["events", "users", "daily_rollup"].map((c) => ({ name: c, kind: c === "daily_rollup" ? "view" : "collection", path: [path[0], c], hasChildren: false, browsable: true }));
       }
-      if (!path.length) return ["app", "postgres"].map((d) => ({ name: d, kind: "database", path: [d], hasChildren: true, browsable: false }));
+      if (path[0] === PATH_ROLES)
+        return roles.map((r) => ({ name: r.name, kind: "role", path: [PATH_ROLES, r.name], hasChildren: false, browsable: false, detail: r.canLogin ? "login" : "group" }));
+      if (path[0] === PATH_TABLESPACES)
+        return ["pg_default", "pg_global"].map((t) => ({ name: t, kind: "tablespace", path: [PATH_TABLESPACES, t], hasChildren: false, browsable: false, detail: "postgres" }));
+      if (!path.length)
+        return [
+          ...databases.map((d) => ({ name: d, kind: "database" as const, path: [d], hasChildren: true, browsable: false })),
+          { name: "Login/Group Roles", kind: "group", path: [PATH_ROLES], hasChildren: true, browsable: false },
+          { name: "Tablespaces", kind: "group", path: [PATH_TABLESPACES], hasChildren: true, browsable: false },
+        ];
       if (path.length === 1) return ["public", "audit"].map((s) => ({ name: s, kind: "schema", path: [path[0], s], hasChildren: true, browsable: false }));
       return [
         { name: "orders", kind: "table", path: [...path, "orders"], hasChildren: false, browsable: true },
@@ -201,6 +224,51 @@ export function createMockBackend() {
     },
     RestartApp: async () => location.reload(),
     CloseWindow: async () => {},
+    ListRoles: async () => {
+      await wait(150);
+      return roles.map((r) => ({ ...r, memberOf: [...r.memberOf] }));
+    },
+    SaveRole: async (_id: string, ch: RoleChange) => {
+      await wait(200);
+      if (!ch.role.name.trim()) throw new Error("give the role a name");
+      const i = roles.findIndex((r) => r.name === (ch.oldName || ch.role.name));
+      if (!ch.oldName && i >= 0) throw new Error(`role "${ch.role.name}" already exists`);
+      if (i >= 0) roles[i] = { ...ch.role };
+      else roles.push({ ...ch.role, builtIn: false });
+    },
+    DropRole: async (_id: string, name: string) => {
+      await wait(150);
+      const i = roles.findIndex((r) => r.name === name);
+      if (i >= 0) roles.splice(i, 1);
+    },
+    CreateDatabase: async (_id: string, name: string) => {
+      await wait(200);
+      if (databases.includes(name)) throw new Error(`database "${name}" already exists`);
+      databases.push(name);
+    },
+    DropDatabase: async (_id: string, name: string) => {
+      await wait(200);
+      const i = databases.indexOf(name);
+      if (i >= 0) databases.splice(i, 1);
+    },
+    Structure: async (_id: string, path: string[]): Promise<TableStructure> => {
+      await wait(150);
+      const name = path[path.length - 1] === "orders" ? "orders" : "users";
+      const t = tables[name];
+      return {
+        kind: "table",
+        columns: t.columns.map((c, i) => ({ name: c.name, type: c.type, nullable: i > 1, default: i === 0 ? "nextval('users_id_seq'::regclass)" : "", primaryKey: i === 0, comment: "" })),
+        indexes: [{ name: `${name}_pkey`, kind: "unique index", definition: `CREATE UNIQUE INDEX ${name}_pkey ON public.${name} USING btree (id)` }],
+        constraints: [{ name: `${name}_pkey`, kind: "primary key", definition: "PRIMARY KEY (id)" }],
+        ddl:
+          `CREATE TABLE "public"."${name}" (\n` +
+          t.columns.map((c) => `  "${c.name}" ${c.type}`).join(",\n") +
+          `\n);\n\nALTER TABLE "public"."${name}" ADD CONSTRAINT "${name}_pkey" PRIMARY KEY (id);`,
+        rowEstimate: t.rows.length,
+        size: "184 kB",
+        comment: "",
+      };
+    },
     DuplicateConnection: async (id: string) => {
       const src = profiles.find((x) => x.id === id)!;
       const copy = { ...src, id: crypto.randomUUID(), name: src.name + " (copy)", connected: false };

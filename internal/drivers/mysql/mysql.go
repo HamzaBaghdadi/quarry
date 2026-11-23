@@ -33,7 +33,7 @@ func init() {
 		info.DefaultUser = "root"
 		info.SSLModes = []string{"false", "preferred", "true", "skip-verify"}
 		info.URIPlaceholder = "user:pass@tcp(localhost:3306)/db?parseTime=true"
-		info.Capabilities = []string{driver.CapEdit, driver.CapBackup}
+		info.Capabilities = []string{driver.CapEdit, driver.CapBackup, driver.CapDatabases, driver.CapStructure}
 		driver.Register(&Driver{info: info})
 	}
 }

@@ -18,6 +18,7 @@ import {
   Sun,
   Table,
   Trash,
+  UsersThree,
   X,
 } from "@phosphor-icons/react";
 import { Toaster, toast } from "sonner";
@@ -28,6 +29,8 @@ import { CommandPalette } from "./CommandPalette";
 import { ConnectionDialog } from "./ConnectionDialog";
 import { Explorer } from "./Explorer";
 import { QueryTab } from "./QueryTab";
+import { RolesTab } from "./RolesTab";
+import { DatabaseDialogs } from "./DatabaseDialogs";
 import { Split } from "./Split";
 import { TableTab } from "./TableTab";
 import { Button, ConfirmHost, EngineBadge, IconButton, Kbd, Spinner, Tip, confirmDialog, mod } from "./common";
@@ -96,6 +99,7 @@ export default function Workbench() {
       <ConfirmHost />
       <ConnectionDialog />
       <BackupDialog />
+      <DatabaseDialogs />
       <CommandPalette />
       <UpdateDialog />
       <Toaster theme={theme} position="bottom-right" toastOptions={{ className: "!bg-popover !border-line-strong !text-fg !font-sans !shadow-pop" }} />
@@ -284,7 +288,7 @@ function Main() {
             <TabBar />
             {tabs.map((t) => (
               <div key={t.id} className={clsx("min-h-0 flex-1 flex-col", t.id === activeTab ? "flex" : "hidden")}>
-                {t.kind === "query" ? <QueryTab tab={t} /> : <TableTab tab={t} />}
+                {t.kind === "query" ? <QueryTab tab={t} /> : t.kind === "roles" ? <RolesTab tab={t} /> : <TableTab tab={t} />}
               </div>
             ))}
           </>
@@ -324,7 +328,7 @@ function TabBar() {
           >
             {active && <span aria-hidden className="absolute inset-x-0 top-0 h-[2px] rounded-t" style={{ background: conn?.color }} />}
             <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: conn?.color }} />
-            {t.kind === "query" ? <Code aria-hidden className="size-3.5 shrink-0" /> : <Table aria-hidden className="size-3.5 shrink-0" />}
+            {t.kind === "query" ? <Code aria-hidden className="size-3.5 shrink-0" /> : t.kind === "roles" ? <UsersThree aria-hidden className="size-3.5 shrink-0" /> : <Table aria-hidden className="size-3.5 shrink-0" />}
             <span className="truncate">{t.title}</span>
             <button
               aria-label={`Close ${t.title}`}

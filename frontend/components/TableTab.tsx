@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowClockwise, ArrowCounterClockwise, CaretLeft, CaretRight, Code, FloppyDisk, Funnel, LockSimple, MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowCounterClockwise, CaretLeft, CaretRight, Code, FloppyDisk, Funnel, LockSimple, MagnifyingGlass, Plus, Rows, TreeStructure, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { api, newRunId, type Cell, type ChangeSet, type Result } from "@/lib/api";
 import { useDriver, useStore, type Tab } from "@/lib/store";
 import type { GridEdits } from "./DataGrid";
 import { ResultPanel } from "./ResultPanel";
+import { StructureView } from "./StructureView";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Button, IconButton, Input, Kbd, Select, Spinner, Tip, confirmDialog, mod } from "./common";
 
 const PAGE_SIZES = [100, 200, 500, 1000];
@@ -33,6 +35,7 @@ export function TableTab({ tab }: { tab: Tab }) {
   const active = useStore((s) => s.activeTab === tab.id);
   const driver = useDriver(conn?.driver);
   const newQuery = useStore((s) => s.newQuery);
+  const updateTab = useStore((s) => s.updateTab);
 
   const [limit, setLimit] = useState(200);
   const [offset, setOffset] = useState(0);
@@ -193,9 +196,40 @@ export function TableTab({ tab }: { tab: Tab }) {
   const filterPlaceholder = family === "document" ? "{ status: 'active', age: { $gt: 30 } }" : "status = 'active' AND created_at > now() - interval '7 days'";
   const shown = rows.length;
 
+  const hasStructure = !!driver?.capabilities?.includes("structure");
+  const view = hasStructure ? tab.view ?? "data" : "data";
+  const viewSwitch = hasStructure && (
+    <ToggleGroup
+      type="single"
+      aria-label="Table view"
+      value={view}
+      onValueChange={(v) => v && updateTab(tab.id, { view: v as "data" | "structure" })}
+      className="shrink-0 rounded-md border border-line p-0.5"
+    >
+      <ToggleGroupItem value="data" className="h-6 cursor-pointer gap-1.5 rounded px-2 text-[12px] text-fg-muted data-[state=on]:bg-bg-3 data-[state=on]:text-fg">
+        <Rows aria-hidden className="size-3.5" /> Data
+      </ToggleGroupItem>
+      <ToggleGroupItem value="structure" className="h-6 cursor-pointer gap-1.5 rounded px-2 text-[12px] text-fg-muted data-[state=on]:bg-bg-3 data-[state=on]:text-fg">
+        <TreeStructure aria-hidden className="size-3.5" /> Structure
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+
+  if (view === "structure")
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-bg-1 px-2">
+          {viewSwitch}
+          <span className="truncate font-mono text-[12px] text-fg-muted">{tab.path?.join(" › ")}</span>
+        </div>
+        <StructureView connId={tab.connId} path={tab.path ?? []} onOpenQuery={(q) => newQuery(tab.connId, tab.scope, q)} />
+      </div>
+    );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-bg-1 px-2">
+        {viewSwitch}
         {filterLabel ? (
           <form
             className="flex min-w-0 flex-1 items-center gap-0 rounded-md border border-line bg-bg-0 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-soft"

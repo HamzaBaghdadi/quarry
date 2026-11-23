@@ -93,6 +93,8 @@ const (
 	KindCollection NodeKind = "collection"
 	KindKey        NodeKind = "key"
 	KindGroup      NodeKind = "group"
+	KindRole       NodeKind = "role"
+	KindTablespace NodeKind = "tablespace"
 )
 
 // Node is one entry in the explorer tree. Path identifies it uniquely within

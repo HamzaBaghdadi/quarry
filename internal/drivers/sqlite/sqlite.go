@@ -24,7 +24,7 @@ func (Driver) Info() driver.Info {
 	return driver.Info{
 		ID: "sqlite", Name: "SQLite", Family: driver.FamilySQL, Language: "sql",
 		Fields:         []driver.Field{driver.FieldFile},
-		Capabilities:   []string{driver.CapEdit, driver.CapBackup},
+		Capabilities:   []string{driver.CapEdit, driver.CapBackup, driver.CapStructure},
 		URIPlaceholder: "file:app.db?mode=ro",
 		Example:        "SELECT sqlite_version();",
 	}
